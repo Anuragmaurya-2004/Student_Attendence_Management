@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import api from '../../api/client';
 import { Card, Button, Input, Select, Table, Badge } from '../../components/ui';
+import { validateStudentForm } from '../../validators';
 import toast from 'react-hot-toast';
 
 export default function ManageStudents() {
@@ -18,6 +19,16 @@ export default function ManageStudents() {
     classBatch: '',
     academicYearJoined: '',
     currentAcademicYear: '',
+  });
+  const [errors, setErrors] = useState({
+    name: '',
+    rollNo: '',
+    email: '',
+    password: '',
+    parentEmail: '',
+    department: '',
+    classBatch: '',
+    academicYearJoined: '',
   });
   const fileInputRef = useRef(null);
   const [importing, setImporting] = useState(false);
@@ -40,8 +51,25 @@ export default function ManageStudents() {
     load();
   }, []);
 
+  const validateForm = () => {
+    const nextErrors = validateStudentForm(form);
+    setErrors({
+      name: nextErrors.name || '',
+      rollNo: nextErrors.rollNo || '',
+      email: nextErrors.email || '',
+      password: nextErrors.password || '',
+      parentEmail: nextErrors.parentEmail || '',
+      department: nextErrors.department || '',
+      classBatch: nextErrors.classBatch || '',
+      academicYearJoined: nextErrors.academicYearJoined || '',
+    });
+    return !Object.values(nextErrors).some(Boolean);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!validateForm()) return;
+
     try {
       await api.post('/students', form);
       toast.success('Student added');
@@ -55,6 +83,16 @@ export default function ManageStudents() {
         classBatch: '',
         academicYearJoined: '',
         currentAcademicYear: '',
+      });
+      setErrors({
+        name: '',
+        rollNo: '',
+        email: '',
+        password: '',
+        parentEmail: '',
+        department: '',
+        classBatch: '',
+        academicYearJoined: '',
       });
       load();
     } catch (err) {
@@ -110,33 +148,57 @@ export default function ManageStudents() {
       <h1 className="text-xl font-bold text-gray-800 mb-4">Manage Students</h1>
       <Card title="Add Student">
         <form onSubmit={handleSubmit} className="grid md:grid-cols-3 gap-3">
-          <Input placeholder="Full Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
-          <Input placeholder="Roll No" value={form.rollNo} onChange={(e) => setForm({ ...form, rollNo: e.target.value })} required />
-          <Input type="email" placeholder="Email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required />
-          <Input type="password" placeholder="Password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required />
-          <Input type="email" placeholder="Parent Email (optional)" value={form.parentEmail} onChange={(e) => setForm({ ...form, parentEmail: e.target.value })} />
-          <Select value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })} required>
-            <option value="">Select Department</option>
-            {departments.map((d) => (
-              <option key={d._id} value={d._id}>{d.name}</option>
-            ))}
-          </Select>
-          <Select value={form.classBatch} onChange={(e) => setForm({ ...form, classBatch: e.target.value })} required>
-            <option value="">Select Class Batch</option>
-            {batches.map((b) => (
-              <option key={b._id} value={b._id}>{b.name}</option>
-            ))}
-          </Select>
-          <Select
-            value={form.academicYearJoined}
-            onChange={(e) => setForm({ ...form, academicYearJoined: e.target.value, currentAcademicYear: e.target.value })}
-            required
-          >
-            <option value="">Select Academic Year (joined / current)</option>
-            {years.map((y) => (
-              <option key={y._id} value={y._id}>{y.label}</option>
-            ))}
-          </Select>
+          <div>
+            <Input placeholder="Full Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} error={errors.name} />
+            {errors.name && <p className="mt-1 text-xs text-red-500">{errors.name}</p>}
+          </div>
+          <div>
+            <Input placeholder="Roll No" value={form.rollNo} onChange={(e) => setForm({ ...form, rollNo: e.target.value })} error={errors.rollNo} />
+            {errors.rollNo && <p className="mt-1 text-xs text-red-500">{errors.rollNo}</p>}
+          </div>
+          <div>
+            <Input type="email" placeholder="Email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} error={errors.email} />
+            {errors.email && <p className="mt-1 text-xs text-red-500">{errors.email}</p>}
+          </div>
+          <div>
+            <Input type="password" placeholder="Password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} error={errors.password} />
+            {errors.password && <p className="mt-1 text-xs text-red-500">{errors.password}</p>}
+          </div>
+          <div>
+            <Input type="email" placeholder="Parent Email (optional)" value={form.parentEmail} onChange={(e) => setForm({ ...form, parentEmail: e.target.value })} error={errors.parentEmail} />
+            {errors.parentEmail && <p className="mt-1 text-xs text-red-500">{errors.parentEmail}</p>}
+          </div>
+          <div>
+            <Select value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })} error={errors.department}>
+              <option value="">Select Department</option>
+              {departments.map((d) => (
+                <option key={d._id} value={d._id}>{d.name}</option>
+              ))}
+            </Select>
+            {errors.department && <p className="mt-1 text-xs text-red-500">{errors.department}</p>}
+          </div>
+          <div>
+            <Select value={form.classBatch} onChange={(e) => setForm({ ...form, classBatch: e.target.value })} error={errors.classBatch}>
+              <option value="">Select Class Batch</option>
+              {batches.map((b) => (
+                <option key={b._id} value={b._id}>{b.name}</option>
+              ))}
+            </Select>
+            {errors.classBatch && <p className="mt-1 text-xs text-red-500">{errors.classBatch}</p>}
+          </div>
+          <div>
+            <Select
+              value={form.academicYearJoined}
+              onChange={(e) => setForm({ ...form, academicYearJoined: e.target.value, currentAcademicYear: e.target.value })}
+              error={errors.academicYearJoined}
+            >
+              <option value="">Select Academic Year (joined / current)</option>
+              {years.map((y) => (
+                <option key={y._id} value={y._id}>{y.label}</option>
+              ))}
+            </Select>
+            {errors.academicYearJoined && <p className="mt-1 text-xs text-red-500">{errors.academicYearJoined}</p>}
+          </div>
           <div className="md:col-span-3">
             <Button type="submit">+ Add Student</Button>
           </div>

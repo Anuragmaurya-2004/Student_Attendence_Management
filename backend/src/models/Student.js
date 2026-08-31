@@ -15,6 +15,8 @@ const studentSchema = new mongoose.Schema(
     academicYearJoined: { type: mongoose.Schema.Types.ObjectId, ref: 'AcademicYear', required: true },
     currentAcademicYear: { type: mongoose.Schema.Types.ObjectId, ref: 'AcademicYear', required: true },
     status: { type: String, enum: ['active', 'promoted', 'passed_out', 'dropped'], default: 'active' },
+    mustChangePassword: { type: Boolean, default: true },
+    passwordChangedAt: { type: Date },
     // history of past class/academic-year assignments, preserved across rollovers
     history: [
       {

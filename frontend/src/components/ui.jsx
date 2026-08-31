@@ -14,46 +14,12 @@ export function Card({ title, children, actions }) {
   );
 }
 
-export function Button({ children, variant = 'primary', className = '', ...props }) {
-  const styles = {
-    primary: 'bg-brand-600 hover:bg-brand-700 text-white',
-    secondary: 'bg-gray-100 hover:bg-gray-200 text-gray-700',
-    danger: 'bg-red-500 hover:bg-red-600 text-white',
-    outline: 'border border-brand-600 text-brand-600 hover:bg-brand-50',
-  };
-  return (
-    <button
-      className={`px-4 py-2 rounded-lg text-sm font-medium transition disabled:opacity-50 ${styles[variant]} ${className}`}
-      {...props}
-    >
-      {children}
-    </button>
-  );
-}
-
-export function Input(props) {
-  return (
-    <input
-      {...props}
-      className={`w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 ${
-        props.className || ''
-      }`}
-    />
-  );
-}
-
-export function Select({ children, ...props }) {
-  return (
-    <select
-      {...props}
-      className={`w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 ${
-        props.className || ''
-      }`}
-    >
-      {children}
-    </select>
-  );
-}
+export { default as Button } from './Button';
+export { default as PrimaryButton } from './PrimaryButton';
+export { default as Input } from './Input';
+export { default as TextInput } from './TextInput';
+export { default as PasswordInput } from './PasswordInput';
+export { default as Select } from './Select';
 
 export function Badge({ children, color = 'gray' }) {
   const colors = {

@@ -1,4 +1,5 @@
 const ExcelJS = require('exceljs');
+const Joi = require('joi');
 const { Readable } = require('stream');
 const crypto = require('crypto');
 const Student = require('../models/Student');
@@ -6,6 +7,35 @@ const Department = require('../models/Department');
 const ClassBatch = require('../models/ClassBatch');
 const AcademicYear = require('../models/AcademicYear');
 const { sendStudentWelcomeEmail } = require('../services/mailService');
+
+const studentImportRowSchema = Joi.object({
+  name: Joi.string().trim().min(2).required().messages({
+    'string.min': 'Name must be at least 2 characters long.',
+    'any.required': 'Name is required.',
+  }),
+  rollNo: Joi.string().trim().min(2).required().messages({
+    'string.min': 'Roll number must be at least 2 characters long.',
+    'any.required': 'Roll number is required.',
+  }),
+  email: Joi.string().trim().email().required().messages({
+    'string.email': 'Email must be a valid email address.',
+    'any.required': 'Email is required.',
+  }),
+  password: Joi.string().trim().min(8).allow('').optional().messages({
+    'string.min': 'Password must be at least 8 characters long when provided.',
+  }),
+  phone: Joi.string().trim().allow('').optional(),
+  parentEmail: Joi.string().trim().email().allow('').optional(),
+  parentPhone: Joi.string().trim().allow('').optional(),
+  departmentCode: Joi.string().trim().min(2).required().messages({
+    'string.min': 'Department code must be at least 2 characters long.',
+    'any.required': 'Department code is required.',
+  }),
+  classBatchName: Joi.string().trim().min(2).required().messages({
+    'string.min': 'Class batch name must be at least 2 characters long.',
+    'any.required': 'Class batch name is required.',
+  }),
+});
 
 // Columns we look for in the uploaded sheet, matched case-insensitively and
 // trimmed - lets admins export from Excel/Google Sheets without worrying
@@ -105,6 +135,10 @@ async function importStudents(req, res) {
     });
   }
 
+  if (!req.file || !req.file.buffer || req.file.buffer.length === 0) {
+    return res.status(400).json({ message: 'Uploaded file is empty.' });
+  }
+
   // Cache lookups so we hit the DB once per distinct department/classBatch/year,
   // not once per row.
   const deptCache = new Map();
@@ -132,9 +166,23 @@ async function importStudents(req, res) {
     const rowResult = { row: rowNum, rollNo, name, status: 'failed', message: '' };
 
     try {
-      if (!name || !rollNo || !email || !deptCode || !classBatchName) {
-        throw new Error('Missing one or more required fields (name, rollNo, email, department, classBatch)');
+      const rowData = {
+        name,
+        rollNo,
+        email,
+        password: password || '',
+        phone: phone || '',
+        parentEmail: parentEmail || '',
+        parentPhone: parentPhone || '',
+        departmentCode: deptCode,
+        classBatchName,
+      };
+
+      const { error } = studentImportRowSchema.validate(rowData, { abortEarly: false });
+      if (error) {
+        throw new Error(error.details.map((d) => d.message).join(', '));
       }
+
       if (!activeYear) {
         throw new Error('No active academic year is set - create/activate one before importing students');
       }

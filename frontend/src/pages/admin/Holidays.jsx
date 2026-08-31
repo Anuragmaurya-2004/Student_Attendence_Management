@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import api from '../../api/client';
 import { Card, Button, Input, Select, Table } from '../../components/ui';
+import { validateHolidayForm } from '../../validators';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 
@@ -8,6 +9,7 @@ export default function Holidays() {
   const [holidays, setHolidays] = useState([]);
   const [years, setYears] = useState([]);
   const [form, setForm] = useState({ date: '', name: '', academicYear: '' });
+  const [errors, setErrors] = useState({ date: '', name: '', academicYear: '' });
 
   const load = async () => {
     const [h, y] = await Promise.all([api.get('/holidays'), api.get('/academic/academic-years')]);
@@ -19,12 +21,25 @@ export default function Holidays() {
     load();
   }, []);
 
+  const validateForm = () => {
+    const nextErrors = validateHolidayForm(form);
+    setErrors({
+      date: nextErrors.date || '',
+      name: nextErrors.name || '',
+      academicYear: nextErrors.academicYear || '',
+    });
+    return !Object.values(nextErrors).some(Boolean);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!validateForm()) return;
+
     try {
       await api.post('/holidays', form);
       toast.success('Holiday added');
       setForm({ date: '', name: '', academicYear: '' });
+      setErrors({ date: '', name: '', academicYear: '' });
       load();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to add holiday');
@@ -42,14 +57,23 @@ export default function Holidays() {
       <h1 className="text-xl font-bold text-gray-800 mb-4">Holiday Calendar</h1>
       <Card title="Add Holiday">
         <form onSubmit={handleSubmit} className="grid md:grid-cols-4 gap-3">
-          <Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} required />
-          <Input placeholder="Holiday Name (e.g. Diwali)" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
-          <Select value={form.academicYear} onChange={(e) => setForm({ ...form, academicYear: e.target.value })} required>
-            <option value="">Select Academic Year</option>
-            {years.map((y) => (
-              <option key={y._id} value={y._id}>{y.label}</option>
-            ))}
-          </Select>
+          <div>
+            <Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} error={errors.date} />
+            {errors.date && <p className="mt-1 text-xs text-red-500">{errors.date}</p>}
+          </div>
+          <div>
+            <Input placeholder="Holiday Name (e.g. Diwali)" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} error={errors.name} />
+            {errors.name && <p className="mt-1 text-xs text-red-500">{errors.name}</p>}
+          </div>
+          <div>
+            <Select value={form.academicYear} onChange={(e) => setForm({ ...form, academicYear: e.target.value })} error={errors.academicYear}>
+              <option value="">Select Academic Year</option>
+              {years.map((y) => (
+                <option key={y._id} value={y._id}>{y.label}</option>
+              ))}
+            </Select>
+            {errors.academicYear && <p className="mt-1 text-xs text-red-500">{errors.academicYear}</p>}
+          </div>
           <Button type="submit">+ Add Holiday</Button>
         </form>
         <p className="text-xs text-gray-400 mt-2">

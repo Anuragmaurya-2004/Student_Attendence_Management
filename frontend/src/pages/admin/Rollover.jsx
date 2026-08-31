@@ -35,10 +35,21 @@ export default function Rollover() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!toYear) return toast.error('Select target academic year');
+    if (!toYear) {
+      toast.error('Select target academic year');
+      return;
+    }
+
     const validMappings = mappings.filter((m) => m.fromClassBatch && m.toClassBatch);
+    const hasInvalidMapping = mappings.some((m) => (m.fromClassBatch && !m.toClassBatch) || (!m.fromClassBatch && m.toClassBatch));
+    if (hasInvalidMapping) {
+      toast.error('Each mapping must include both the source and target class batch.');
+      return;
+    }
+
     if (validMappings.length === 0 && graduating.length === 0) {
-      return toast.error('Add at least one class mapping or graduating batch');
+      toast.error('Add at least one class mapping or graduating batch');
+      return;
     }
     try {
       const { data } = await api.post('/rollover/promote', {
@@ -65,7 +76,7 @@ export default function Rollover() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Target (New) Academic Year</label>
-            <Select value={toYear} onChange={(e) => setToYear(e.target.value)} required>
+            <Select value={toYear} onChange={(e) => setToYear(e.target.value)}>
               <option value="">Select academic year</option>
               {years.map((y) => (
                 <option key={y._id} value={y._id}>{y.label}</option>

@@ -1,22 +1,45 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { Button, TextInput, PasswordInput } from '../components/ui';
 import toast from 'react-hot-toast';
+import { validateLoginForm } from '../validators';
 
 export default function Login() {
   const [role, setRole] = useState('faculty'); // 'faculty' covers admin+faculty login endpoint
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [emailError, setEmailError] = useState('');
+  const [passwordError, setPasswordError] = useState('');
   const [busy, setBusy] = useState(false);
   const { loginFaculty, loginStudent } = useAuth();
   const navigate = useNavigate();
 
+  const validateForm = () => {
+    const validations = validateLoginForm({ email, password });
+    const nextEmailError = validations.email;
+    const nextPasswordError = validations.password;
+
+    setEmailError(nextEmailError);
+    setPasswordError(nextPasswordError);
+
+    return !nextEmailError && !nextPasswordError;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!validateForm()) return;
+
     setBusy(true);
     try {
       const user = role === 'student' ? await loginStudent(email, password) : await loginFaculty(email, password);
       toast.success(`Welcome, ${user.name}`);
+
+      if (role === 'student' && user.mustChangePassword) {
+        navigate('/student/change-password');
+        return;
+      }
+
       navigate(`/${user.role}`);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Login failed');
@@ -47,35 +70,32 @@ export default function Login() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
-              placeholder="you@college.edu"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-            <input
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
-              placeholder="••••••••"
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={busy}
-            className="w-full bg-brand-600 hover:bg-brand-700 text-white font-medium py-2.5 rounded-lg transition disabled:opacity-60"
-          >
+          <TextInput
+            label="Email"
+            type="email"
+            value={email}
+            error={emailError}
+            placeholder="you@college.edu"
+            onChange={(e) => {
+              setEmail(e.target.value);
+              if (emailError) setEmailError('');
+            }}
+          />
+
+          <PasswordInput
+            label="Password"
+            value={password}
+            error={passwordError}
+            placeholder="••••••••"
+            onChange={(e) => {
+              setPassword(e.target.value);
+              if (passwordError) setPasswordError('');
+            }}
+          />
+
+          <Button type="submit" className="w-full" disabled={busy}>
             {busy ? 'Signing in...' : 'Sign In'}
-          </button>
+          </Button>
         </form>
 
         <div className="mt-6 text-xs text-gray-400 border-t pt-4">

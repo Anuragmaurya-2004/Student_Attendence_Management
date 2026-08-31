@@ -20,6 +20,7 @@ import FacultyDefaulters from './pages/faculty/FacultyDefaulters';
 
 import StudentAttendance from './pages/student/StudentAttendance';
 import ScanQR from './pages/student/ScanQR';
+import ChangePassword from './pages/student/ChangePassword';
 
 function HomeRedirect() {
   const { user } = useAuth();
@@ -54,6 +55,7 @@ export default function App() {
 
             {/* Student routes */}
             <Route path="/student" element={<ProtectedRoute roles={['student']}><StudentAttendance /></ProtectedRoute>} />
+            <Route path="/student/change-password" element={<ProtectedRoute roles={['student']}><ChangePassword /></ProtectedRoute>} />
             <Route path="/student/scan" element={<ProtectedRoute roles={['student']}><ScanQR /></ProtectedRoute>} />
           </Route>
 

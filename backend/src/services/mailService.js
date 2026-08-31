@@ -71,4 +71,33 @@ async function sendStudentWelcomeEmail({ studentName, email, password, rollNo })
   });
 }
 
-module.exports = { sendMail, defaulterEmailTemplate, studentWelcomeEmailTemplate, sendStudentWelcomeEmail };
+function passwordChangedEmailTemplate({ studentName, email }) {
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; line-height: 1.6;">
+      <h2 style="color:#27ae60; margin-bottom: 12px;">Password Changed Successfully</h2>
+      <p>Dear ${studentName},</p>
+      <p>Your password for the Attendance Management System has been updated successfully.</p>
+      <p><strong>Email:</strong> ${email}</p>
+      <p>You can now log in with your new password.</p>
+      <p style="color:#888; font-size: 12px;">This is an automated message from the Attendance Management System.</p>
+    </div>
+  `;
+}
+
+async function sendPasswordChangedEmail({ studentName, email }) {
+  const html = passwordChangedEmailTemplate({ studentName, email });
+  return sendMail({
+    to: email,
+    subject: 'Your password has been changed',
+    html,
+  });
+}
+
+module.exports = {
+  sendMail,
+  defaulterEmailTemplate,
+  studentWelcomeEmailTemplate,
+  sendStudentWelcomeEmail,
+  passwordChangedEmailTemplate,
+  sendPasswordChangedEmail,
+};
