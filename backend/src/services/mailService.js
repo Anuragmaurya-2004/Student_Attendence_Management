@@ -84,11 +84,34 @@ function passwordChangedEmailTemplate({ studentName, email }) {
   `;
 }
 
+function facultyWelcomeEmailTemplate({ facultyName, email, password }) {
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; line-height: 1.6;">
+      <h2 style="color:#1f6feb; margin-bottom: 12px;">Faculty Login Credentials</h2>
+      <p>Dear ${facultyName},</p>
+      <p>Your faculty account has been created for the Attendance Management System.</p>
+      <p><strong>Email:</strong> ${email}</p>
+      <p><strong>Temporary Password:</strong> <span style="font-family: monospace; background:#f4f4f4; padding:4px 8px; border-radius:4px;">${password}</span></p>
+      <p>Please log in using the email above and change your password after your first successful login.</p>
+      <p style="color:#888; font-size: 12px;">This is an automated message from the Attendance Management System.</p>
+    </div>
+  `;
+}
+
 async function sendPasswordChangedEmail({ studentName, email }) {
   const html = passwordChangedEmailTemplate({ studentName, email });
   return sendMail({
     to: email,
     subject: 'Your password has been changed',
+    html,
+  });
+}
+
+async function sendFacultyWelcomeEmail({ facultyName, email, password }) {
+  const html = facultyWelcomeEmailTemplate({ facultyName, email, password });
+  return sendMail({
+    to: email,
+    subject: 'Your faculty login credentials',
     html,
   });
 }
@@ -100,4 +123,6 @@ module.exports = {
   sendStudentWelcomeEmail,
   passwordChangedEmailTemplate,
   sendPasswordChangedEmail,
+  facultyWelcomeEmailTemplate,
+  sendFacultyWelcomeEmail,
 };

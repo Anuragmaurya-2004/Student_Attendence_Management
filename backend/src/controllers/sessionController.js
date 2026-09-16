@@ -2,6 +2,7 @@ const QRCode = require('qrcode');
 const { v4: uuidv4 } = require('uuid');
 const Session = require('../models/Session');
 const Holiday = require('../models/Holiday');
+const ClassBatch = require('../models/ClassBatch');
 
 const QR_VALID_MINUTES = parseInt(process.env.QR_TOKEN_VALID_MINUTES || '10', 10);
 
@@ -10,12 +11,24 @@ const QR_VALID_MINUTES = parseInt(process.env.QR_TOKEN_VALID_MINUTES || '10', 10
 const createSession = async (req, res) => {
   const { course, classBatch, academicYear, date, startTime, endTime, type, durationHours } = req.body;
 
-  // Prevent creating sessions on a holiday
+  // Prevent creating sessions on a holiday for the same year and, when relevant, the same semester.
   const dayStart = new Date(date);
   dayStart.setHours(0, 0, 0, 0);
   const dayEnd = new Date(date);
   dayEnd.setHours(23, 59, 59, 999);
-  const holiday = await Holiday.findOne({ date: { $gte: dayStart, $lte: dayEnd }, academicYear });
+
+  const batch = await ClassBatch.findById(classBatch);
+  const semester = batch?.semester;
+  const holidayQuery = {
+    date: { $gte: dayStart, $lte: dayEnd },
+    academicYear,
+    $or: [{ semester: { $exists: false } }, { semester: null }],
+  };
+  if (semester) {
+    holidayQuery.$or.push({ semester });
+  }
+
+  const holiday = await Holiday.findOne(holidayQuery);
   if (holiday) {
     return res.status(400).json({ message: `Cannot schedule session on a holiday: ${holiday.name}` });
   }
