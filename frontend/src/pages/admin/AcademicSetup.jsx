@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import api from '../../api/client';
 import { Card, Button, Input, Select, Table, Badge } from '../../components/ui';
 import { validateAcademicYearForm, validateDepartmentForm, validateBatchForm, validateCourseForm } from '../../validators';
@@ -26,7 +26,10 @@ export default function AcademicSetup() {
   const [deptErrors, setDeptErrors] = useState({ name: '', code: '' });
   const [yearErrors, setYearErrors] = useState({ label: '', startDate: '', endDate: '' });
   const [batchErrors, setBatchErrors] = useState({ name: '', department: '', semester: '', academicYear: '' });
-  const [courseErrors, setCourseErrors] = useState({ name: '', code: '', department: '', semester: '', weeklyHours: '', academicYear: '' });
+  const [courseErrors, setCourseErrors] = useState({ name: '', code: '', type: '', department: '', semester: '', weeklyHours: '', academicYear: '' });
+  const courseFileInputRef = useRef(null);
+  const [courseImporting, setCourseImporting] = useState(false);
+  const [courseImportResult, setCourseImportResult] = useState(null);
 
   const loadAll = async () => {
     const [d, y, b, c] = await Promise.all([
@@ -73,6 +76,7 @@ export default function AcademicSetup() {
     setCourseErrors({
       name: nextErrors.name || '',
       code: nextErrors.code || '',
+      type: nextErrors.type || '',
       department: nextErrors.department || '',
       semester: nextErrors.semester || '',
       weeklyHours: nextErrors.weeklyHours || '',
@@ -82,7 +86,10 @@ export default function AcademicSetup() {
   };
 
   const submit = async (fn, resetFn, validator) => {
-    if (validator && !validator()) return;
+    if (validator && !validator()) {
+      toast.error('Please complete the highlighted fields.');
+      return;
+    }
 
     try {
       await fn();
@@ -91,6 +98,49 @@ export default function AcademicSetup() {
       loadAll();
     } catch (e) {
       toast.error(e.response?.data?.message || 'Failed to save');
+    }
+  };
+
+  const handleCourseDownloadTemplate = async () => {
+    try {
+      const res = await api.get('/academic/courses/import/template', { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'course_import_template.xlsx');
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      toast.error('Could not download course template');
+    }
+  };
+
+  const handleCourseFileImport = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setCourseImporting(true);
+    setCourseImportResult(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await api.post('/academic/courses/import', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setCourseImportResult(res.data);
+      if (res.data.created > 0) {
+        toast.success(`Imported ${res.data.created} course(s)${res.data.failed ? `, ${res.data.failed} failed` : ''}`);
+      } else {
+        toast.error('No courses were imported - check the results below');
+      }
+      loadAll();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Course import failed');
+    } finally {
+      setCourseImporting(false);
+      if (courseFileInputRef.current) courseFileInputRef.current.value = '';
     }
   };
 
@@ -194,6 +244,17 @@ export default function AcademicSetup() {
               );
             }}
           >
+            {Object.values(courseErrors).some(Boolean) && (
+              <div className="col-span-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
+                <p className="font-medium">Complete these course fields:</p>
+                <p className="mt-1">
+                  {Object.entries(courseErrors)
+                    .filter(([, message]) => message)
+                    .map(([field]) => field.replace(/([A-Z])/g, ' $1').replace(/^./, (letter) => letter.toUpperCase()))
+                    .join(', ')}
+                </p>
+              </div>
+            )}
             <div>
               <Input
                 placeholder="Name (Computer Science)"
@@ -323,7 +384,7 @@ export default function AcademicSetup() {
                     weeklyHours: 1,
                     academicYear: '',
                   });
-                  setCourseErrors({ name: '', code: '', department: '', semester: '', weeklyHours: '', academicYear: '' });
+                  setCourseErrors({ name: '', code: '', type: '', department: '', semester: '', weeklyHours: '', academicYear: '' });
                 },
                 validateCourse
               );
@@ -358,10 +419,15 @@ export default function AcademicSetup() {
               {courseErrors.semester && <p className="mt-1 text-xs text-red-500">{courseErrors.semester}</p>}
             </div>
             <div>
-              <Select value={courseForm.type} onChange={(e) => setCourseForm({ ...courseForm, type: e.target.value })}>
+              <Select
+                value={courseForm.type}
+                onChange={(e) => setCourseForm({ ...courseForm, type: e.target.value })}
+                error={courseErrors.type}
+              >
                 <option value="theory">Theory</option>
                 <option value="practical">Practical</option>
               </Select>
+              {courseErrors.type && <p className="mt-1 text-xs text-red-500">{courseErrors.type}</p>}
             </div>
             <div>
               <Input
@@ -407,6 +473,36 @@ export default function AcademicSetup() {
               <Button type="submit">+ Add Course</Button>
             </div>
           </form>
+          <div className="mt-4 mb-4 flex flex-wrap items-center gap-3">
+            <Button variant="outline" type="button" onClick={handleCourseDownloadTemplate}>⬇ Download Template</Button>
+            <input ref={courseFileInputRef} type="file" accept=".xlsx,.xls,.csv" onChange={handleCourseFileImport} disabled={courseImporting} className="text-sm" />
+            {courseImporting && <span className="text-sm text-gray-500">Importing...</span>}
+          </div>
+
+          {courseImportResult && (
+            <div className="mt-4">
+              <div className="flex gap-2 mb-2">
+                <Badge color="green">{courseImportResult.created} created</Badge>
+                {courseImportResult.failed > 0 && <Badge color="red">{courseImportResult.failed} failed</Badge>}
+              </div>
+              <div className="max-h-64 overflow-y-auto border border-gray-100 rounded-lg">
+                <Table
+                  columns={[
+                    { key: 'row', header: 'Row' },
+                    { key: 'code', header: 'Code' },
+                    { key: 'name', header: 'Name' },
+                    {
+                      key: 'status',
+                      header: 'Status',
+                      render: (r) => <Badge color={r.status === 'created' ? 'green' : 'red'}>{r.status}</Badge>,
+                    },
+                    { key: 'message', header: 'Details' },
+                  ]}
+                  data={courseImportResult.rows}
+                />
+              </div>
+            </div>
+          )}
           <Table
             columns={[
               { key: 'name', header: 'Name' },

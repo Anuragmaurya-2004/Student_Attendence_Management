@@ -65,6 +65,9 @@ export const holidaySchema = Joi.object({
     'string.min': 'Holiday name must be at least 2 characters.',
   }),
   academicYear: Joi.string().required().messages({ 'string.empty': 'Academic year is required.' }),
+  semester: Joi.number().min(1).allow('').optional().messages({
+    'number.min': 'Semester must be at least 1.',
+  }),
 });
 
 export const studentSchema = Joi.object({
@@ -86,6 +89,7 @@ export const studentSchema = Joi.object({
   department: Joi.string().required().messages({ 'string.empty': 'Department is required.' }),
   classBatch: Joi.string().required().messages({ 'string.empty': 'Class batch is required.' }),
   academicYearJoined: Joi.string().required().messages({ 'string.empty': 'Academic year is required.' }),
+    currentAcademicYear: Joi.string().required().messages({ 'string.empty': 'Current academic year is required.' }),
 });
 
 export const sessionSchema = Joi.object({
@@ -95,6 +99,10 @@ export const sessionSchema = Joi.object({
   date: Joi.string().required().messages({ 'string.empty': 'Session date is required.' }),
   startTime: Joi.string().required().messages({ 'string.empty': 'Start time is required.' }),
   endTime: Joi.string().required().messages({ 'string.empty': 'End time is required.' }),
+  type: Joi.string().valid('theory', 'practical').required().messages({
+    'any.only': 'Session type must be theory or practical.',
+    'any.required': 'Session type is required.',
+  }),
   durationHours: Joi.number().min(0.5).required().messages({
     'number.base': 'Duration must be greater than 0.',
     'number.min': 'Duration must be greater than 0.',
@@ -141,6 +149,10 @@ export const courseSchema = Joi.object({
   code: Joi.string().trim().required().min(2).messages({
     'string.empty': 'Course code is required.',
     'string.min': 'Course code must be at least 2 characters.',
+  }),
+  type: Joi.string().valid('theory', 'practical').required().messages({
+    'any.only': 'Course type must be theory or practical.',
+    'any.required': 'Course type is required.',
   }),
   department: Joi.string().required().messages({ 'string.empty': 'Department is required.' }),
   semester: Joi.number().min(1).required().messages({

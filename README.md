@@ -1,7 +1,7 @@
 # Attendance Management System (Open Source MERN Stack)
 
 A college attendance management system with:
-- QR-code based student check-in (via web camera, no app install needed)
+- QR-code based student check-in (via web camera, no app install needed), with rotating tokens and GPS geofencing
 - Manual attendance marking by faculty
 - **Theory vs Practical hours tracked separately** per course, for accurate defaulter detection
 - Automated **email notifications** to students & parents when attendance drops below threshold
@@ -71,6 +71,11 @@ Edit `.env`:
 - `JWT_SECRET` — change to a long random string
 - `SMTP_*` — fill in to enable email notifications (leave blank to skip emails; the app will log a warning and continue working otherwise)
 - `DEFAULTER_THRESHOLD_PERCENT` — default minimum attendance % (e.g. 75)
+- `QR_TOKEN_VALID_SECONDS` — QR token lifetime (default 20 seconds)
+- `QR_ROTATION_INTERVAL_SECONDS` — faculty-screen refresh interval (default 15 seconds)
+- `QR_TOKEN_GRACE_SECONDS` — previous-token grace period (default 5 seconds)
+- `GEOFENCE_DEFAULT_RADIUS_METERS` — fallback classroom radius (default 75m)
+- `GEOFENCE_MAX_ACCURACY_METERS` — maximum accepted browser GPS uncertainty (default 100m)
 - `CLIENT_URL` — your frontend URL (for CORS), default `http://localhost:5173`
 
 **Seed demo data** (creates a department, academic year, class, 2 courses, 1 admin, 1 faculty, 5 students):
@@ -144,8 +149,8 @@ This outputs static files to `frontend/dist/`, which can be served by any static
 1. **Admin** logs in → Academic Setup: create Academic Year → Department → Class Batch → Courses (mark each as `theory` or `practical` with weekly hours)
 2. **Admin** adds Students and Faculty
 3. **Faculty** logs in → "My Sessions" → schedules a session for a course/class/date/time
-4. **Faculty** opens the session → clicks "Generate QR Code" → displays it (e.g. projector/screen) — valid for a limited time (default 10 min, configurable via `QR_TOKEN_VALID_MINUTES`)
-5. **Students** log in on their own phone/laptop → "Scan QR" → camera scans the code → attendance marked instantly
+4. **Faculty** opens the session while in the classroom → sets the venue with "Use My Current Location" → clicks "Generate QR Code". The displayed QR rotates automatically every 15 seconds and each token is valid for 20 seconds by default.
+5. **Students** log in on their own phone/laptop → "Scan QR" → the camera and browser GPS are used together. The server checks the rotating token, batch membership, duplicate attendance, and classroom distance before creating a QR attendance record.
    - Faculty can also mark attendance manually per student (present/absent/late) from the same session page
 6. **Admin/Faculty** view "Defaulters" — students below the attendance threshold, split by theory/practical per course
 7. The **cron job** automatically emails students + parents when they cross below threshold (max once/week per course to avoid spam)

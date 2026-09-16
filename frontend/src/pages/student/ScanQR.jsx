@@ -10,9 +10,11 @@ export default function ScanQR() {
   const [scanning, setScanning] = useState(false);
   const [result, setResult] = useState(null);
   const scannerRef = useRef(null);
+  const scanHandledRef = useRef(false);
 
   const startScanning = async () => {
     setResult(null);
+    scanHandledRef.current = false;
     setScanning(true);
     const html5QrCode = new Html5Qrcode(SCANNER_ELEMENT_ID);
     scannerRef.current = html5QrCode;
@@ -44,17 +46,36 @@ export default function ScanQR() {
   };
 
   const handleScanSuccess = async (decodedText) => {
+    if (scanHandledRef.current) return;
+    scanHandledRef.current = true;
     await stopScanning();
     try {
       const payload = JSON.parse(decodedText);
+      if (!navigator.geolocation) throw new Error('This browser does not support location.');
+      const position = await new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0,
+        });
+      });
       const { data } = await api.post('/attendance/check-in', {
         sessionId: payload.sessionId,
         token: payload.token,
+        location: {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          accuracy: position.coords.accuracy,
+        },
       });
       setResult({ success: true, message: 'Attendance marked successfully!' });
       toast.success('Attendance marked!');
     } catch (err) {
-      const message = err.response?.data?.message || 'Invalid or expired QR code';
+      let message = err.response?.data?.message || 'Invalid or expired QR code';
+      if (!err.response && err.code === 1) message = 'Location permission was denied. Allow location access and scan the QR again.';
+      if (!err.response && err.code === 2) message = 'Your location is unavailable. Turn on device location and scan again.';
+      if (!err.response && err.code === 3) message = 'Location lookup timed out. Move near a window and scan again.';
+      if (!err.response && err.message) message = err.message;
       setResult({ success: false, message });
       toast.error(message);
     }
@@ -92,7 +113,7 @@ export default function ScanQR() {
           )}
 
           <p className="text-xs text-gray-400 text-center max-w-sm">
-            Ask your faculty to display the session QR code, then scan it here within the class period. Camera permission is required.
+            Ask your faculty to display the rotating session QR code, then scan it here inside the configured classroom. Camera and location permissions are required.
           </p>
         </div>
       </Card>

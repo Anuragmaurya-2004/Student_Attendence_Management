@@ -1,10 +1,24 @@
 const express = require('express');
+const multer = require('multer');
 const router = express.Router();
 const { protect, authorize } = require('../middleware/auth');
 const Department = require('../models/Department');
 const AcademicYear = require('../models/AcademicYear');
 const Course = require('../models/Course');
 const ClassBatch = require('../models/ClassBatch');
+const { importCourses, downloadTemplate } = require('../controllers/courseImportController');
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowed = /\.(xlsx|xls|csv)$/i;
+    if (!allowed.test(file.originalname)) {
+      return cb(new Error('Only .xlsx, .xls or .csv files are allowed'));
+    }
+    cb(null, true);
+  },
+});
 
 router.use(protect);
 
@@ -55,6 +69,8 @@ router.post('/courses', authorize('admin'), async (req, res) => {
   const course = await Course.create(req.body);
   res.status(201).json(course);
 });
+router.post('/courses/import', authorize('admin'), upload.single('file'), importCourses);
+router.get('/courses/import/template', authorize('admin'), downloadTemplate);
 router.put('/courses/:id', authorize('admin'), async (req, res) => {
   const course = await Course.findByIdAndUpdate(req.params.id, req.body, { new: true });
   res.json(course);
