@@ -125,11 +125,22 @@ This outputs static files to `frontend/dist/`, which can be served by any static
 
 ## 5. Demo Login Credentials (after running `npm run seed`)
 
-| Role | Email | Password |
-|---|---|---|
-| Admin | admin@college.edu | Admin@123 |
-| Faculty | priya.sharma@college.edu | Faculty@123 |
-| Student | student1@college.edu (…student5) | Student@123 |
+| Designation / Role | Department | Email | Password |
+|---|---|---|---|
+| **Principal (Admin)** | All | `admin@college.edu` | `Admin@123` |
+| **HOD (Admin)** | Computer Engg (CSE) | `hod.cse@college.edu` | `Hod@1234` |
+| **HOD (Admin)** | Information Tech (IT) | `hod.it@college.edu` | `Hod@1234` |
+| **HOD (Admin)** | AI & Data Science (AI-DS) | `hod.aids@college.edu` | `Hod@1234` |
+| **Teacher (Faculty)** | Computer Engg (CSE) | `priya.sharma@college.edu` | `Faculty@123` |
+| **Teacher (Faculty)** | Computer Engg (CSE) | `amit.deshmukh@college.edu` | `Faculty@123` |
+| **Teacher (Faculty)** | Information Tech (IT) | `sneha.joshi@college.edu` | `Faculty@123` |
+| **Teacher (Faculty)** | Information Tech (IT) | `vikram.patel@college.edu` | `Faculty@123` |
+| **Teacher (Faculty)** | AI & Data Science (AI-DS) | `neha.gupta@college.edu` | `Faculty@123` |
+| **Student 1 (On-Duty / Visit)** | TE-CSE | `student1@college.edu` | `Student@123` |
+| **Student 2 (On-Duty / Visit)** | TE-CSE | `student2@college.edu` | `Student@123` |
+| **Student 5 (Hackathon Finalist)**| TE-CSE | `student5@college.edu` | `Student@123` |
+| **Student 7 (Defaulter Demo)**| TE-CSE | `student7@college.edu` | `Student@123` |
+| **Other Students (1 to 20)**| Various Batches | `studentX@college.edu` | `Student@123` |
 
 ---
 

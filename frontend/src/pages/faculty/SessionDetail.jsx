@@ -167,19 +167,40 @@ export default function SessionDetail() {
                 render: (r) => {
                   const current = attendanceMap[r._id]?.status || 'unmarked';
                   return (
-                    <Select value={current} onChange={(e) => markStatus(r._id, e.target.value)}>
-                      <option value="unmarked" disabled>Unmarked</option>
-                      <option value="present">Present</option>
-                      <option value="absent">Absent</option>
-                      <option value="late">Late</option>
-                    </Select>
+                    <div className="flex items-center gap-2">
+                      <Select value={current} onChange={(e) => markStatus(r._id, e.target.value)}>
+                        <option value="unmarked" disabled>Unmarked</option>
+                        <option value="present">Present</option>
+                        <option value="absent">Absent</option>
+                        <option value="late">Late</option>
+                        <option value="on_duty">On Duty (OD / Visit)</option>
+                      </Select>
+                      {current === 'on_duty' && (
+                        <Badge color="purple">OD</Badge>
+                      )}
+                    </div>
                   );
                 },
               },
               {
                 key: 'method',
-                header: 'Method',
-                render: (r) => attendanceMap[r._id]?.method && <Badge>{attendanceMap[r._id].method}</Badge>,
+                header: 'Method / Info',
+                render: (r) => {
+                  const record = attendanceMap[r._id];
+                  if (!record) return null;
+                  return (
+                    <div className="flex flex-col gap-0.5">
+                      <Badge color={record.status === 'on_duty' ? 'purple' : 'gray'}>
+                        {record.method}
+                      </Badge>
+                      {record.dutyReason && (
+                        <span className="text-[10px] text-gray-500 italic max-w-[120px] truncate" title={record.dutyReason}>
+                          {record.dutyReason}
+                        </span>
+                      )}
+                    </div>
+                  );
+                },
               },
             ]}
             data={students}

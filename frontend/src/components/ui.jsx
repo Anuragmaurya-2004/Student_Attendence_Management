@@ -28,8 +28,10 @@ export function Badge({ children, color = 'gray' }) {
     red: 'bg-red-100 text-red-700',
     yellow: 'bg-yellow-100 text-yellow-800',
     blue: 'bg-blue-100 text-blue-700',
+    purple: 'bg-purple-100 text-purple-700',
+    indigo: 'bg-indigo-100 text-indigo-700',
   };
-  return <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${colors[color]}`}>{children}</span>;
+  return <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${colors[color] || colors.gray}`}>{children}</span>;
 }
 
 export function Table({ columns, data, emptyText = 'No data found' }) {
