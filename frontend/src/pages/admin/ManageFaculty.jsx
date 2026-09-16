@@ -7,6 +7,9 @@ import toast from 'react-hot-toast';
 export default function ManageFaculty() {
   const [faculty, setFaculty] = useState([]);
   const [departments, setDepartments] = useState([]);
+  const [courses, setCourses] = useState([]);
+  const [batches, setBatches] = useState([]);
+  const [assignments, setAssignments] = useState({});
   const [form, setForm] = useState({ name: '', email: '', password: '', department: '', role: 'faculty' });
   const [errors, setErrors] = useState({ name: '', email: '', password: '', department: '' });
   const fileInputRef = useRef(null);
@@ -14,14 +17,50 @@ export default function ManageFaculty() {
   const [importResult, setImportResult] = useState(null);
 
   const load = async () => {
-    const [f, d] = await Promise.all([api.get('/faculty'), api.get('/academic/departments')]);
+    const [f, d, c, b] = await Promise.all([
+      api.get('/faculty'),
+      api.get('/academic/departments'),
+      api.get('/academic/courses'),
+      api.get('/academic/class-batches'),
+    ]);
     setFaculty(f.data);
     setDepartments(d.data);
+    setCourses(c.data);
+    setBatches(b.data);
+    setAssignments(
+      Object.fromEntries(
+        f.data.map((member) => [
+          member._id,
+          {
+            coursesAssigned: (member.coursesAssigned || []).map((course) => course._id || course),
+            classBatchesAssigned: (member.classBatchesAssigned || []).map((batch) => batch._id || batch),
+          },
+        ])
+      )
+    );
   };
 
   useEffect(() => {
     load();
   }, []);
+
+  const updateAssignment = (facultyId, field, event) => {
+    const values = Array.from(event.target.selectedOptions, (option) => option.value);
+    setAssignments((current) => ({
+      ...current,
+      [facultyId]: { ...current[facultyId], [field]: values },
+    }));
+  };
+
+  const saveAssignments = async (facultyId) => {
+    try {
+      await api.put(`/faculty/${facultyId}`, assignments[facultyId]);
+      toast.success('Faculty assignments saved');
+      load();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to save faculty assignments');
+    }
+  };
 
   const validateForm = () => {
     const nextErrors = validateFacultyForm(form);
@@ -39,8 +78,8 @@ export default function ManageFaculty() {
     if (!validateForm()) return;
 
     try {
-      await api.post('/faculty', form);
-      toast.success('Faculty added');
+      const { data } = await api.post('/faculty', form);
+      toast.success(data.message || 'Faculty added');
       setForm({ name: '', email: '', password: '', department: '', role: 'faculty' });
       setErrors({ name: '', email: '', password: '', department: '' });
       load();
@@ -167,12 +206,48 @@ export default function ManageFaculty() {
       </Card>
 
       <Card title={`All Faculty (${faculty.length})`}>
+        <p className="mb-3 text-xs text-gray-500">Select multiple subjects or classes with Ctrl-click (or Cmd-click on macOS), then choose Save Assignments.</p>
         <Table
           columns={[
             { key: 'name', header: 'Name' },
             { key: 'email', header: 'Email' },
             { key: 'department', header: 'Dept', render: (r) => r.department?.name },
             { key: 'role', header: 'Role', render: (r) => <Badge color={r.role === 'admin' ? 'blue' : 'gray'}>{r.role}</Badge> },
+              {
+                key: 'coursesAssigned',
+                header: 'Subjects',
+                render: (r) => (
+                  <Select
+                    multiple
+                    size="3"
+                    value={assignments[r._id]?.coursesAssigned || []}
+                    onChange={(e) => updateAssignment(r._id, 'coursesAssigned', e)}
+                    className="min-w-44"
+                  >
+                    {courses.map((course) => <option key={course._id} value={course._id}>{course.code} - {course.name}</option>)}
+                  </Select>
+                ),
+              },
+              {
+                key: 'classBatchesAssigned',
+                header: 'Classes',
+                render: (r) => (
+                  <Select
+                    multiple
+                    size="3"
+                    value={assignments[r._id]?.classBatchesAssigned || []}
+                    onChange={(e) => updateAssignment(r._id, 'classBatchesAssigned', e)}
+                    className="min-w-36"
+                  >
+                    {batches.map((batch) => <option key={batch._id} value={batch._id}>{batch.name}</option>)}
+                  </Select>
+                ),
+              },
+              {
+                key: 'saveAssignments',
+                header: '',
+                render: (r) => <Button className="whitespace-nowrap" onClick={() => saveAssignments(r._id)}>Save Assignments</Button>,
+              },
           ]}
           data={faculty}
         />

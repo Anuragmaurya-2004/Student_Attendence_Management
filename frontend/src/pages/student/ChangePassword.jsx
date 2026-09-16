@@ -39,7 +39,8 @@ export default function ChangePassword() {
 
     setBusy(true);
     try {
-      await api.post('/auth/student/change-password', {
+      const endpoint = user.role === 'student' ? '/auth/student/change-password' : '/auth/faculty/change-password';
+      await api.post(endpoint, {
         currentPassword: form.currentPassword,
         newPassword: form.newPassword,
         confirmPassword: form.confirmPassword,
@@ -49,7 +50,7 @@ export default function ChangePassword() {
       setUser(updatedUser);
       localStorage.setItem('user', JSON.stringify(updatedUser));
       toast.success('Password changed successfully.');
-      navigate('/student');
+      navigate(user.role === 'student' ? '/student' : '/faculty');
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to change password.');
     } finally {

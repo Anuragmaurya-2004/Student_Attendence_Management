@@ -13,6 +13,7 @@ export default function FacultySessions() {
   const [courses, setCourses] = useState([]);
   const [batches, setBatches] = useState([]);
   const [years, setYears] = useState([]);
+  const [facultyProfile, setFacultyProfile] = useState(null);
   const [form, setForm] = useState({
     course: '',
     classBatch: '',
@@ -30,19 +31,24 @@ export default function FacultySessions() {
     date: '',
     startTime: '',
     endTime: '',
+    type: '',
     durationHours: '',
   });
 
   const load = async () => {
-    const [s, c, b, y] = await Promise.all([
+    const [s, c, b, y, profile] = await Promise.all([
       api.get('/sessions', { params: { faculty: user.id } }),
       api.get('/academic/courses'),
       api.get('/academic/class-batches'),
       api.get('/academic/academic-years'),
+      user.role === 'faculty' ? api.get(`/faculty/${user.id}`) : Promise.resolve({ data: null }),
     ]);
     setSessions(s.data);
-    setCourses(c.data);
-    setBatches(b.data);
+    setFacultyProfile(profile.data);
+    const assignedCourseIds = new Set((profile.data?.coursesAssigned || []).map((course) => course._id || course));
+    const assignedBatchIds = new Set((profile.data?.classBatchesAssigned || []).map((batch) => batch._id || batch));
+    setCourses(user.role === 'faculty' ? c.data.filter((course) => assignedCourseIds.has(course._id)) : c.data);
+    setBatches(user.role === 'faculty' ? b.data.filter((batch) => assignedBatchIds.has(batch._id)) : b.data);
     setYears(y.data);
   };
 
@@ -64,6 +70,7 @@ export default function FacultySessions() {
       date: nextErrors.date || '',
       startTime: nextErrors.startTime || '',
       endTime: nextErrors.endTime || '',
+      type: nextErrors.type || '',
       durationHours: nextErrors.durationHours || '',
     });
     return !Object.values(nextErrors).some(Boolean);
@@ -86,6 +93,11 @@ export default function FacultySessions() {
     <div>
       <h1 className="text-xl font-bold text-gray-800 mb-4">My Sessions</h1>
       <Card title="Schedule a New Session">
+        {user.role === 'faculty' && (!facultyProfile?.coursesAssigned?.length || !facultyProfile?.classBatchesAssigned?.length) && (
+          <p className="mb-3 rounded-lg border border-yellow-200 bg-yellow-50 px-3 py-2 text-sm text-yellow-800">
+            An administrator must assign you at least one subject and class before you can schedule sessions.
+          </p>
+        )}
         <form onSubmit={handleSubmit} className="grid md:grid-cols-4 gap-3">
           <div>
             <Select value={form.course} onChange={(e) => handleCourseChange(e.target.value)} error={errors.course}>
@@ -125,6 +137,13 @@ export default function FacultySessions() {
           <div>
             <Input type="time" value={form.endTime} onChange={(e) => setForm({ ...form, endTime: e.target.value })} error={errors.endTime} />
             {errors.endTime && <p className="mt-1 text-xs text-red-500">{errors.endTime}</p>}
+          </div>
+          <div>
+            <Select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} error={errors.type}>
+              <option value="theory">Theory</option>
+              <option value="practical">Practical</option>
+            </Select>
+            {errors.type && <p className="mt-1 text-xs text-red-500">{errors.type}</p>}
           </div>
           <div>
             <Input

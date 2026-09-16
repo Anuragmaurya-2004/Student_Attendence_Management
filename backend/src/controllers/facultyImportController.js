@@ -162,6 +162,7 @@ async function importFaculty(req, res) {
         phone: phone || undefined,
         department: department._id,
         role: role === 'admin' ? 'admin' : 'faculty',
+        mustChangePassword: true,
       });
       await faculty.save();
 

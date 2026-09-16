@@ -16,6 +16,8 @@ const sessionSchema = new mongoose.Schema(
     // QR check-in fields
     qrToken: { type: String, default: () => uuidv4(), unique: true },
     qrExpiresAt: { type: Date },
+    qrPreviousToken: { type: String },
+    qrPreviousExpiresAt: { type: Date },
   },
   { timestamps: true }
 );

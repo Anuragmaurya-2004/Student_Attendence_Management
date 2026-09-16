@@ -11,10 +11,13 @@ export default function SessionDetail() {
   const [students, setStudents] = useState([]);
   const [attendance, setAttendance] = useState([]);
   const [secondsLeft, setSecondsLeft] = useState(0);
+  const [radiusMeters, setRadiusMeters] = useState(75);
+  const [locationStatus, setLocationStatus] = useState('');
 
   const loadSession = useCallback(async () => {
     const { data } = await api.get(`/sessions/${id}`);
     setSession(data);
+    if (data.classBatch?.classroom?.radiusMeters) setRadiusMeters(data.classBatch.classroom.radiusMeters);
     return data;
   }, [id]);
 
@@ -46,15 +49,54 @@ export default function SessionDetail() {
     return () => clearInterval(interval);
   }, [qr]);
 
-  const generateQR = async () => {
+  const generateQR = async (showToast = true) => {
     try {
       const { data } = await api.post(`/sessions/${id}/qr`);
       setQr(data);
-      toast.success('QR code generated — valid for a limited time');
-      loadSession();
+      if (showToast) toast.success('QR code generated — it will rotate automatically');
+      if (showToast) loadSession();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to generate QR');
+      if (showToast) toast.error(err.response?.data?.message || 'Failed to generate QR');
     }
+  };
+
+  useEffect(() => {
+    if (!qr?.rotationIntervalSeconds) return undefined;
+    const interval = setInterval(() => generateQR(false), qr.rotationIntervalSeconds * 1000);
+    return () => clearInterval(interval);
+  }, [qr?.rotationIntervalSeconds, id]);
+
+  const setClassroomLocation = () => {
+    if (!navigator.geolocation) {
+      setLocationStatus('This browser does not support location. Use a recent browser on a GPS-enabled device.');
+      return;
+    }
+    setLocationStatus('Reading your current location...');
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          await api.put(`/sessions/${id}/location`, {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            radiusMeters: Number(radiusMeters),
+          });
+          setLocationStatus('Classroom location saved.');
+          loadSession();
+          toast.success('Classroom location saved');
+        } catch (err) {
+          setLocationStatus(err.response?.data?.message || 'Could not save classroom location.');
+        }
+      },
+      (error) => {
+        const messages = {
+          1: 'Location permission was denied. Allow location access in the browser and try again.',
+          2: 'Your location is unavailable. Turn on device location and try again.',
+          3: 'Location lookup timed out. Move near a window and try again.',
+        };
+        setLocationStatus(messages[error.code] || 'Could not read your current location.');
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
   };
 
   const markStatus = async (studentId, status) => {
@@ -85,11 +127,33 @@ export default function SessionDetail() {
             <div className="mt-4 text-center">
               <img src={qr.qrDataUrl} alt="Session QR" className="mx-auto w-48 h-48 border rounded-lg" />
               <p className="text-sm text-gray-500 mt-2">
-                {secondsLeft > 0 ? `Expires in ${secondsLeft}s` : 'Expired — regenerate to allow more check-ins'}
+                {secondsLeft > 0 ? `Rotates in ${secondsLeft}s` : 'Expired — waiting for the next rotation'}
               </p>
-              <p className="text-xs text-gray-400 mt-1">Students scan this with the "Scan QR" page in their app.</p>
+              <p className="text-xs text-gray-400 mt-1">This QR rotates automatically. Students scan it with the "Scan QR" page.</p>
             </div>
           )}
+          <div className="mt-5 border-t pt-4">
+            <p className="text-sm font-medium text-gray-700">Classroom geofence</p>
+            <p className="text-xs text-gray-500 mt-1">Set this while standing in the classroom. Student QR check-ins must be inside this radius.</p>
+            <div className="flex items-end gap-2 mt-3">
+              <label className="text-sm text-gray-600">
+                Radius (m)
+                <input
+                  type="number"
+                  min="1"
+                  max="1000"
+                  value={radiusMeters}
+                  onChange={(e) => setRadiusMeters(e.target.value)}
+                  className="block w-24 mt-1 border border-gray-300 rounded-lg px-2 py-2 text-sm"
+                />
+              </label>
+              <Button variant="outline" onClick={setClassroomLocation}>Use My Current Location</Button>
+            </div>
+            {session.classBatch?.classroom?.latitude != null && (
+              <p className="text-xs text-green-600 mt-2">Location configured ({session.classBatch.classroom.radiusMeters}m radius).</p>
+            )}
+            {locationStatus && <p className="text-xs text-gray-500 mt-2">{locationStatus}</p>}
+          </div>
         </Card>
 
         <Card title={`Mark Attendance Manually (${students.length} students)`}>

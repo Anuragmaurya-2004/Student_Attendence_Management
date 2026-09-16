@@ -12,10 +12,14 @@ export function AuthProvider({ children }) {
 
   const loginFaculty = async (email, password) => {
     const { data } = await api.post('/auth/faculty/login', { email, password });
+    const userData = {
+      ...data.user,
+      mustChangePassword: Boolean(data.mustChangePassword),
+    };
     localStorage.setItem('token', data.token);
-    localStorage.setItem('user', JSON.stringify(data.user));
-    setUser(data.user);
-    return data.user;
+    localStorage.setItem('user', JSON.stringify(userData));
+    setUser(userData);
+    return userData;
   };
 
   const loginStudent = async (email, password) => {
