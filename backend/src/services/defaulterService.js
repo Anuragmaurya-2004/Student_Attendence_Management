@@ -23,9 +23,11 @@ async function computeStudentCourseAttendance(studentId, courseId) {
   const attendedRecords = await Attendance.find({
     session: { $in: sessionIds },
     student: studentId,
-    status: { $in: ['present', 'late'] },
+    status: { $in: ['present', 'late', 'on_duty'] },
   }).populate('session');
 
+  const onDutyRecords = attendedRecords.filter((a) => a.status === 'on_duty');
+  const onDutyHours = onDutyRecords.reduce((sum, a) => sum + (a.session?.durationHours || 0), 0);
   const attendedHours = attendedRecords.reduce((sum, a) => sum + (a.session?.durationHours || 0), 0);
 
   const attendancePercent = totalHeldHours > 0 ? (attendedHours / totalHeldHours) * 100 : 100;
@@ -36,6 +38,7 @@ async function computeStudentCourseAttendance(studentId, courseId) {
     type: course.type,
     academicYear: course.academicYear,
     attendedHours,
+    onDutyHours,
     totalHeldHours,
     attendancePercent: Math.round(attendancePercent * 100) / 100,
     threshold: course.defaulterThresholdPercent || DEFAULT_THRESHOLD,

@@ -8,12 +8,14 @@ const linksByRole = {
     { to: '/admin/setup', label: 'Academic Setup' },
     { to: '/admin/students', label: 'Students' },
     { to: '/admin/faculty', label: 'Faculty' },
+    { to: '/admin/onduty', label: 'On-Duty & Visits' },
     { to: '/admin/holidays', label: 'Holidays' },
     { to: '/admin/defaulters', label: 'Defaulters' },
     { to: '/admin/rollover', label: 'Year Rollover' },
   ],
   faculty: [
     { to: '/faculty', label: 'My Sessions' },
+    { to: '/faculty/onduty', label: 'On-Duty & Visits' },
     { to: '/faculty/defaulters', label: 'Defaulters' },
   ],
   student: [

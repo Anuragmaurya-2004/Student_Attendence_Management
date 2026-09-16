@@ -21,6 +21,7 @@ router.get('/defaulters/excel', async (req, res) => {
     { header: 'Course', key: 'courseName', width: 25 },
     { header: 'Type', key: 'type', width: 12 },
     { header: 'Attended Hours', key: 'attendedHours', width: 15 },
+    { header: 'On-Duty Hours', key: 'onDutyHours', width: 15 },
     { header: 'Total Held Hours', key: 'totalHeldHours', width: 15 },
     { header: 'Attendance %', key: 'attendancePercent', width: 15 },
     { header: 'Threshold %', key: 'threshold', width: 12 },
@@ -53,7 +54,7 @@ router.get('/defaulters/pdf', async (req, res) => {
     doc
       .fontSize(10)
       .text(
-        `${idx + 1}. ${r.rollNo} - ${r.studentName} | ${r.courseName} (${r.type}) | ${r.attendancePercent}% (min ${r.threshold}%)`
+        `${idx + 1}. ${r.rollNo} - ${r.studentName} | ${r.courseName} (${r.type}) | ${r.attendancePercent}% (Attended: ${r.attendedHours}h, OD: ${r.onDutyHours || 0}h, Total: ${r.totalHeldHours}h | Min ${r.threshold}%)`
       );
   });
 

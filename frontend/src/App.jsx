@@ -13,6 +13,7 @@ import ManageFaculty from './pages/admin/ManageFaculty';
 import Holidays from './pages/admin/Holidays';
 import Defaulters from './pages/admin/Defaulters';
 import Rollover from './pages/admin/Rollover';
+import OnDutyManagement from './pages/admin/OnDutyManagement';
 
 import FacultySessions from './pages/faculty/FacultySessions';
 import SessionDetail from './pages/faculty/SessionDetail';
@@ -44,12 +45,14 @@ export default function App() {
             <Route path="/admin/setup" element={<ProtectedRoute roles={['admin']}><AcademicSetup /></ProtectedRoute>} />
             <Route path="/admin/students" element={<ProtectedRoute roles={['admin']}><ManageStudents /></ProtectedRoute>} />
             <Route path="/admin/faculty" element={<ProtectedRoute roles={['admin']}><ManageFaculty /></ProtectedRoute>} />
+            <Route path="/admin/onduty" element={<ProtectedRoute roles={['admin']}><OnDutyManagement /></ProtectedRoute>} />
             <Route path="/admin/holidays" element={<ProtectedRoute roles={['admin']}><Holidays /></ProtectedRoute>} />
             <Route path="/admin/defaulters" element={<ProtectedRoute roles={['admin']}><Defaulters /></ProtectedRoute>} />
             <Route path="/admin/rollover" element={<ProtectedRoute roles={['admin']}><Rollover /></ProtectedRoute>} />
 
             {/* Faculty routes (admin can access too since admin extends faculty login) */}
             <Route path="/faculty" element={<ProtectedRoute roles={['faculty', 'admin']}><FacultySessions /></ProtectedRoute>} />
+            <Route path="/faculty/onduty" element={<ProtectedRoute roles={['faculty', 'admin']}><OnDutyManagement /></ProtectedRoute>} />
             <Route path="/faculty/sessions/:id" element={<ProtectedRoute roles={['faculty', 'admin']}><SessionDetail /></ProtectedRoute>} />
             <Route path="/faculty/defaulters" element={<ProtectedRoute roles={['faculty', 'admin']}><FacultyDefaulters /></ProtectedRoute>} />
 

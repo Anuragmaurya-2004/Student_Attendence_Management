@@ -13,6 +13,7 @@ const holidayRoutes = require('./routes/holidayRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 const rolloverRoutes = require('./routes/rolloverRoutes');
 const exportRoutes = require('./routes/exportRoutes');
+const onDutyRoutes = require('./routes/onDutyRoutes');
 const { notFound, errorHandler } = require('./middleware/errorHandler');
 
 const app = express();
@@ -37,6 +38,7 @@ app.use('/api/holidays', holidayRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/rollover', rolloverRoutes);
 app.use('/api/export', exportRoutes);
+app.use('/api/onduty', onDutyRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
