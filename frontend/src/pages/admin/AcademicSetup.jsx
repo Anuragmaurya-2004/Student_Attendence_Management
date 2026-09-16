@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import api from '../../api/client';
 import { Card, Button, Input, Select, Table, Badge } from '../../components/ui';
 import { validateAcademicYearForm, validateDepartmentForm, validateBatchForm, validateCourseForm } from '../../validators';
@@ -27,6 +27,9 @@ export default function AcademicSetup() {
   const [yearErrors, setYearErrors] = useState({ label: '', startDate: '', endDate: '' });
   const [batchErrors, setBatchErrors] = useState({ name: '', department: '', semester: '', academicYear: '' });
   const [courseErrors, setCourseErrors] = useState({ name: '', code: '', department: '', semester: '', weeklyHours: '', academicYear: '' });
+  const courseFileInputRef = useRef(null);
+  const [courseImporting, setCourseImporting] = useState(false);
+  const [courseImportResult, setCourseImportResult] = useState(null);
 
   const loadAll = async () => {
     const [d, y, b, c] = await Promise.all([
@@ -91,6 +94,49 @@ export default function AcademicSetup() {
       loadAll();
     } catch (e) {
       toast.error(e.response?.data?.message || 'Failed to save');
+    }
+  };
+
+  const handleCourseDownloadTemplate = async () => {
+    try {
+      const res = await api.get('/academic/courses/import/template', { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'course_import_template.xlsx');
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      toast.error('Could not download course template');
+    }
+  };
+
+  const handleCourseFileImport = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setCourseImporting(true);
+    setCourseImportResult(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await api.post('/academic/courses/import', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setCourseImportResult(res.data);
+      if (res.data.created > 0) {
+        toast.success(`Imported ${res.data.created} course(s)${res.data.failed ? `, ${res.data.failed} failed` : ''}`);
+      } else {
+        toast.error('No courses were imported - check the results below');
+      }
+      loadAll();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Course import failed');
+    } finally {
+      setCourseImporting(false);
+      if (courseFileInputRef.current) courseFileInputRef.current.value = '';
     }
   };
 
@@ -407,6 +453,36 @@ export default function AcademicSetup() {
               <Button type="submit">+ Add Course</Button>
             </div>
           </form>
+          <div className="mt-4 mb-4 flex flex-wrap items-center gap-3">
+            <Button variant="outline" type="button" onClick={handleCourseDownloadTemplate}>⬇ Download Template</Button>
+            <input ref={courseFileInputRef} type="file" accept=".xlsx,.xls,.csv" onChange={handleCourseFileImport} disabled={courseImporting} className="text-sm" />
+            {courseImporting && <span className="text-sm text-gray-500">Importing...</span>}
+          </div>
+
+          {courseImportResult && (
+            <div className="mt-4">
+              <div className="flex gap-2 mb-2">
+                <Badge color="green">{courseImportResult.created} created</Badge>
+                {courseImportResult.failed > 0 && <Badge color="red">{courseImportResult.failed} failed</Badge>}
+              </div>
+              <div className="max-h-64 overflow-y-auto border border-gray-100 rounded-lg">
+                <Table
+                  columns={[
+                    { key: 'row', header: 'Row' },
+                    { key: 'code', header: 'Code' },
+                    { key: 'name', header: 'Name' },
+                    {
+                      key: 'status',
+                      header: 'Status',
+                      render: (r) => <Badge color={r.status === 'created' ? 'green' : 'red'}>{r.status}</Badge>,
+                    },
+                    { key: 'message', header: 'Details' },
+                  ]}
+                  data={courseImportResult.rows}
+                />
+              </div>
+            </div>
+          )}
           <Table
             columns={[
               { key: 'name', header: 'Name' },

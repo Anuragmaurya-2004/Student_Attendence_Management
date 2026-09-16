@@ -65,6 +65,9 @@ export const holidaySchema = Joi.object({
     'string.min': 'Holiday name must be at least 2 characters.',
   }),
   academicYear: Joi.string().required().messages({ 'string.empty': 'Academic year is required.' }),
+  semester: Joi.number().min(1).allow('').optional().messages({
+    'number.min': 'Semester must be at least 1.',
+  }),
 });
 
 export const studentSchema = Joi.object({

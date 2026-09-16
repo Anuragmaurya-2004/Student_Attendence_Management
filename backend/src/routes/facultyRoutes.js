@@ -1,8 +1,10 @@
 const express = require('express');
 const Joi = require('joi');
+const multer = require('multer');
 const router = express.Router();
 const { protect, authorize } = require('../middleware/auth');
 const Faculty = require('../models/Faculty');
+const { importFaculty, downloadTemplate } = require('../controllers/facultyImportController');
 
 const objectIdSchema = Joi.string().pattern(/^[a-fA-F0-9]{24}$/).required();
 
@@ -44,6 +46,18 @@ const validateRequest = (schema, req, res, next) => {
   next();
 };
 
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowed = /\.(xlsx|xls|csv)$/i;
+    if (!allowed.test(file.originalname)) {
+      return cb(new Error('Only .xlsx, .xls or .csv files are allowed'));
+    }
+    cb(null, true);
+  },
+});
+
 router.use(protect);
 
 router.get('/', authorize('admin'), async (req, res) => {
@@ -70,6 +84,9 @@ router.post('/', authorize('admin'), (req, res, next) => validateRequest(createF
     res.status(400).json({ message: err.message });
   }
 });
+
+router.post('/import', authorize('admin'), upload.single('file'), importFaculty);
+router.get('/import/template', authorize('admin'), downloadTemplate);
 
 router.put('/:id', authorize('admin'), (req, res, next) => validateRequest(updateFacultySchema, req, res, next), async (req, res) => {
   try {

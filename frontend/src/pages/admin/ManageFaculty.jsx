@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import api from '../../api/client';
 import { Card, Button, Input, Select, Table, Badge } from '../../components/ui';
 import { validateFacultyForm } from '../../validators';
@@ -9,6 +9,9 @@ export default function ManageFaculty() {
   const [departments, setDepartments] = useState([]);
   const [form, setForm] = useState({ name: '', email: '', password: '', department: '', role: 'faculty' });
   const [errors, setErrors] = useState({ name: '', email: '', password: '', department: '' });
+  const fileInputRef = useRef(null);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState(null);
 
   const load = async () => {
     const [f, d] = await Promise.all([api.get('/faculty'), api.get('/academic/departments')]);
@@ -43,6 +46,49 @@ export default function ManageFaculty() {
       load();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to add faculty');
+    }
+  };
+
+  const handleDownloadTemplate = async () => {
+    try {
+      const res = await api.get('/faculty/import/template', { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'faculty_import_template.xlsx');
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      toast.error('Could not download template');
+    }
+  };
+
+  const handleFileImport = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setImporting(true);
+    setImportResult(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await api.post('/faculty/import', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setImportResult(res.data);
+      if (res.data.created > 0) {
+        toast.success(`Imported ${res.data.created} faculty record(s)${res.data.failed ? `, ${res.data.failed} failed` : ''}`);
+      } else {
+        toast.error('No faculty records were imported - check the results below');
+      }
+      load();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Import failed');
+    } finally {
+      setImporting(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
@@ -82,6 +128,42 @@ export default function ManageFaculty() {
             <Button type="submit">+ Add</Button>
           </div>
         </form>
+      </Card>
+
+      <Card title="Bulk Import from Excel / CSV">
+        <p className="text-sm text-gray-500 mb-3">
+          Add multiple faculty members in one upload instead of creating them one by one. Download the template, fill in each faculty member, and upload the file back here.
+        </p>
+        <div className="flex flex-wrap items-center gap-3">
+          <Button variant="outline" onClick={handleDownloadTemplate} type="button">⬇ Download Template</Button>
+          <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" onChange={handleFileImport} disabled={importing} className="text-sm" />
+          {importing && <span className="text-sm text-gray-500">Importing...</span>}
+        </div>
+
+        {importResult && (
+          <div className="mt-4">
+            <div className="flex gap-2 mb-2">
+              <Badge color="green">{importResult.created} created</Badge>
+              {importResult.failed > 0 && <Badge color="red">{importResult.failed} failed</Badge>}
+            </div>
+            <div className="max-h-64 overflow-y-auto border border-gray-100 rounded-lg">
+              <Table
+                columns={[
+                  { key: 'row', header: 'Row' },
+                  { key: 'email', header: 'Email' },
+                  { key: 'name', header: 'Name' },
+                  {
+                    key: 'status',
+                    header: 'Status',
+                    render: (r) => <Badge color={r.status === 'created' ? 'green' : 'red'}>{r.status}</Badge>,
+                  },
+                  { key: 'message', header: 'Details' },
+                ]}
+                data={importResult.rows}
+              />
+            </div>
+          </div>
+        )}
       </Card>
 
       <Card title={`All Faculty (${faculty.length})`}>
