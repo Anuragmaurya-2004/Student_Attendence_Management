@@ -56,7 +56,14 @@ const facultyLogin = async (req, res) => {
   const token = generateToken({ id: faculty._id, role: faculty.role });
   res.json({
     token,
-    user: { id: faculty._id, name: faculty.name, email: faculty.email, role: faculty.role, department: faculty.department },
+    user: {
+      id: faculty._id,
+      name: faculty.name,
+      email: faculty.email,
+      role: faculty.role,
+      department: faculty.department,
+    },
+    mustChangePassword: Boolean(faculty.mustChangePassword),
   });
 };
 
@@ -134,10 +141,55 @@ const changeStudentPassword = async (req, res) => {
   }
 };
 
+// @desc Allow newly created faculty/admin accounts to replace their temporary password
+// @route POST /api/auth/faculty/change-password
+const changeFacultyPassword = async (req, res) => {
+  try {
+    if (!['faculty', 'admin'].includes(req.user.role)) {
+      return res.status(403).json({ message: 'Only faculty or admin users can use this endpoint.' });
+    }
+
+    const { error } = changePasswordSchema.validate(req.body, { abortEarly: false });
+    if (error) {
+      return res.status(400).json({ message: error.details.map((d) => d.message).join(', ') });
+    }
+
+    const { currentPassword, newPassword, confirmPassword } = req.body;
+    const faculty = await Faculty.findById(req.user.id).select('+password');
+    if (!faculty) return res.status(404).json({ message: 'Faculty account not found.' });
+
+    if (!(await faculty.comparePassword(currentPassword))) {
+      return res.status(401).json({ message: 'Current password is incorrect.' });
+    }
+    if (currentPassword === newPassword || (await faculty.comparePassword(newPassword))) {
+      return res.status(400).json({ message: 'New password must be different from the current password.' });
+    }
+
+    faculty.password = newPassword;
+    faculty.mustChangePassword = false;
+    faculty.passwordChangedAt = new Date();
+    await faculty.save();
+
+    return res.json({ message: 'Password changed successfully.', mustChangePassword: false });
+  } catch (err) {
+    console.error('[Auth] Faculty password change error:', err);
+    return res.status(500).json({ message: 'Could not change password.' });
+  }
+};
+
 // @desc Get currently logged-in user's profile
 // @route GET /api/auth/me
 const getMe = async (req, res) => {
   res.json({ id: req.user.id, role: req.user.role, ...req.user.doc.toObject({ getters: true }), password: undefined });
 };
 
-module.exports = { facultyLogin, studentLogin, changeStudentPassword, getMe, validateRequest, loginSchema, changePasswordSchema };
+module.exports = {
+  facultyLogin,
+  studentLogin,
+  changeStudentPassword,
+  changeFacultyPassword,
+  getMe,
+  validateRequest,
+  loginSchema,
+  changePasswordSchema,
+};

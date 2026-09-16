@@ -1,12 +1,13 @@
 const Attendance = require('../models/Attendance');
 const Session = require('../models/Session');
 const Student = require('../models/Student');
+const { verifyStudentLocation } = require('../services/geofenceService');
 
 // @desc Student scans QR to mark their own attendance
 // @route POST /api/attendance/check-in
-// body: { sessionId, token }
+// body: { sessionId, token, location: { latitude, longitude, accuracy } }
 const checkIn = async (req, res) => {
-  const { sessionId, token } = req.body;
+  const { sessionId, token, location } = req.body;
   if (req.user.role !== 'student') {
     return res.status(403).json({ message: 'Only students can self check-in via QR' });
   }
@@ -14,11 +15,12 @@ const checkIn = async (req, res) => {
   const session = await Session.findById(sessionId);
   if (!session) return res.status(404).json({ message: 'Session not found' });
 
-  if (session.qrToken !== token) {
+  const isCurrentToken = session.qrToken === token && session.qrExpiresAt?.getTime() >= Date.now();
+  const isPreviousToken = session.qrPreviousToken === token && session.qrPreviousExpiresAt?.getTime() >= Date.now();
+  // A short-lived rotating token limits screenshot replay; the previous token is accepted only
+  // during the configured grace period so a scan crossing a rotation is still usable.
+  if (!isCurrentToken && !isPreviousToken) {
     return res.status(400).json({ message: 'Invalid QR code' });
-  }
-  if (!session.qrExpiresAt || session.qrExpiresAt.getTime() < Date.now()) {
-    return res.status(400).json({ message: 'QR code has expired. Ask faculty to refresh it.' });
   }
 
   // Ensure student belongs to this session's class batch
@@ -26,6 +28,10 @@ const checkIn = async (req, res) => {
   if (student.classBatch.toString() !== session.classBatch.toString()) {
     return res.status(403).json({ message: 'You are not part of this class/batch' });
   }
+
+  // Geofencing applies only to student QR self check-in. Faculty/admin manual paths intentionally bypass it.
+  const locationCheck = verifyStudentLocation((await session.populate('classBatch')).classBatch.classroom, location);
+  if (!locationCheck.ok) return res.status(400).json({ message: locationCheck.message });
 
   try {
     const attendance = await Attendance.create({

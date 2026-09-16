@@ -26,7 +26,7 @@ export default function AcademicSetup() {
   const [deptErrors, setDeptErrors] = useState({ name: '', code: '' });
   const [yearErrors, setYearErrors] = useState({ label: '', startDate: '', endDate: '' });
   const [batchErrors, setBatchErrors] = useState({ name: '', department: '', semester: '', academicYear: '' });
-  const [courseErrors, setCourseErrors] = useState({ name: '', code: '', department: '', semester: '', weeklyHours: '', academicYear: '' });
+  const [courseErrors, setCourseErrors] = useState({ name: '', code: '', type: '', department: '', semester: '', weeklyHours: '', academicYear: '' });
   const courseFileInputRef = useRef(null);
   const [courseImporting, setCourseImporting] = useState(false);
   const [courseImportResult, setCourseImportResult] = useState(null);
@@ -76,6 +76,7 @@ export default function AcademicSetup() {
     setCourseErrors({
       name: nextErrors.name || '',
       code: nextErrors.code || '',
+      type: nextErrors.type || '',
       department: nextErrors.department || '',
       semester: nextErrors.semester || '',
       weeklyHours: nextErrors.weeklyHours || '',
@@ -85,7 +86,10 @@ export default function AcademicSetup() {
   };
 
   const submit = async (fn, resetFn, validator) => {
-    if (validator && !validator()) return;
+    if (validator && !validator()) {
+      toast.error('Please complete the highlighted fields.');
+      return;
+    }
 
     try {
       await fn();
@@ -240,6 +244,17 @@ export default function AcademicSetup() {
               );
             }}
           >
+            {Object.values(courseErrors).some(Boolean) && (
+              <div className="col-span-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
+                <p className="font-medium">Complete these course fields:</p>
+                <p className="mt-1">
+                  {Object.entries(courseErrors)
+                    .filter(([, message]) => message)
+                    .map(([field]) => field.replace(/([A-Z])/g, ' $1').replace(/^./, (letter) => letter.toUpperCase()))
+                    .join(', ')}
+                </p>
+              </div>
+            )}
             <div>
               <Input
                 placeholder="Name (Computer Science)"
@@ -369,7 +384,7 @@ export default function AcademicSetup() {
                     weeklyHours: 1,
                     academicYear: '',
                   });
-                  setCourseErrors({ name: '', code: '', department: '', semester: '', weeklyHours: '', academicYear: '' });
+                  setCourseErrors({ name: '', code: '', type: '', department: '', semester: '', weeklyHours: '', academicYear: '' });
                 },
                 validateCourse
               );
@@ -404,10 +419,15 @@ export default function AcademicSetup() {
               {courseErrors.semester && <p className="mt-1 text-xs text-red-500">{courseErrors.semester}</p>}
             </div>
             <div>
-              <Select value={courseForm.type} onChange={(e) => setCourseForm({ ...courseForm, type: e.target.value })}>
+              <Select
+                value={courseForm.type}
+                onChange={(e) => setCourseForm({ ...courseForm, type: e.target.value })}
+                error={courseErrors.type}
+              >
                 <option value="theory">Theory</option>
                 <option value="practical">Practical</option>
               </Select>
+              {courseErrors.type && <p className="mt-1 text-xs text-red-500">{courseErrors.type}</p>}
             </div>
             <div>
               <Input

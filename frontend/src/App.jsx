@@ -52,6 +52,7 @@ export default function App() {
             <Route path="/faculty" element={<ProtectedRoute roles={['faculty', 'admin']}><FacultySessions /></ProtectedRoute>} />
             <Route path="/faculty/sessions/:id" element={<ProtectedRoute roles={['faculty', 'admin']}><SessionDetail /></ProtectedRoute>} />
             <Route path="/faculty/defaulters" element={<ProtectedRoute roles={['faculty', 'admin']}><FacultyDefaulters /></ProtectedRoute>} />
+            <Route path="/faculty/change-password" element={<ProtectedRoute roles={['faculty', 'admin']}><ChangePassword /></ProtectedRoute>} />
 
             {/* Student routes */}
             <Route path="/student" element={<ProtectedRoute roles={['student']}><StudentAttendance /></ProtectedRoute>} />

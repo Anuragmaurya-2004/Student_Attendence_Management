@@ -19,6 +19,7 @@ export default function ManageStudents() {
     classBatch: '',
     academicYearJoined: '',
     currentAcademicYear: '',
+    currentAcademicYear: '',
   });
   const [errors, setErrors] = useState({
     name: '',
@@ -62,6 +63,7 @@ export default function ManageStudents() {
       department: nextErrors.department || '',
       classBatch: nextErrors.classBatch || '',
       academicYearJoined: nextErrors.academicYearJoined || '',
+      currentAcademicYear: nextErrors.currentAcademicYear || '',
     });
     return !Object.values(nextErrors).some(Boolean);
   };
@@ -83,6 +85,7 @@ export default function ManageStudents() {
         classBatch: '',
         academicYearJoined: '',
         currentAcademicYear: '',
+        currentAcademicYear: '',
       });
       setErrors({
         name: '',
@@ -93,6 +96,7 @@ export default function ManageStudents() {
         department: '',
         classBatch: '',
         academicYearJoined: '',
+        currentAcademicYear: '',
       });
       load();
     } catch (err) {
@@ -190,14 +194,16 @@ export default function ManageStudents() {
             <Select
               value={form.academicYearJoined}
               onChange={(e) => setForm({ ...form, academicYearJoined: e.target.value, currentAcademicYear: e.target.value })}
-              error={errors.academicYearJoined}
+              error={errors.academicYearJoined || errors.currentAcademicYear}
             >
               <option value="">Select Academic Year (joined / current)</option>
               {years.map((y) => (
                 <option key={y._id} value={y._id}>{y.label}</option>
               ))}
             </Select>
-            {errors.academicYearJoined && <p className="mt-1 text-xs text-red-500">{errors.academicYearJoined}</p>}
+            {(errors.academicYearJoined || errors.currentAcademicYear) && (
+              <p className="mt-1 text-xs text-red-500">{errors.academicYearJoined || errors.currentAcademicYear}</p>
+            )}
           </div>
           <div className="md:col-span-3">
             <Button type="submit">+ Add Student</Button>
