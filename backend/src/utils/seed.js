@@ -358,6 +358,15 @@ async function seed() {
     { name: 'Neha Bhasin', rollNo: 'AI2603', email: 'student18@college.edu', batch: batchTEAIP._id, dept: deptAIDS._id, parentEmail: 'parent.nehab@gmail.com', phone: '9840033333' },
     { name: 'Nikhil Kamath', rollNo: 'AI2604', email: 'student19@college.edu', batch: batchTEAIP._id, dept: deptAIDS._id, parentEmail: 'parent.nikhil@gmail.com', phone: '9840044444' },
     { name: 'Shruti Iyer', rollNo: 'AI2605', email: 'student20@college.edu', batch: batchTEAIP._id, dept: deptAIDS._id, parentEmail: 'parent.shruti@gmail.com', phone: '9840055555' },
+    {
+      name: 'Anurag Maurya',
+      rollNo: 'CSE2611',
+      email: '233119@theemcoe.org',
+      batch: batchTECSE._id,
+      dept: deptCSE._id,
+      parentEmail: 'anuragmaurya1114@gmail.com',
+      phone: '9876543212',
+    },
   ];
 
   const createdStudents = [];
@@ -444,14 +453,17 @@ async function seed() {
   for (const sess of heldSessions) {
     for (let idx = 0; idx < cseStudents.length; idx++) {
       const st = cseStudents[idx];
+      const isTargetDefaulter = st.email === '233119@theemcoe.org';
+
       // Simulate realistic attendance pattern:
       // Student 1, 2, 3: High attendance (~90%)
       // Student 4, 5, 6: Moderate attendance (~75-80%)
       // Student 7, 8: Defaulters initially (~50%)
+      // The target email is always forced to be absent for defaulter testing.
       let status = 'present';
       const rand = (idx * 7 + sess.date.getDate()) % 10;
 
-      if (idx >= 6 && rand > 4) {
+      if (isTargetDefaulter || (idx >= 6 && rand > 4)) {
         status = 'absent';
       } else if (rand === 9) {
         status = 'late';

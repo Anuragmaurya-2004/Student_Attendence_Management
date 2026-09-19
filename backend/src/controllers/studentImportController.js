@@ -27,6 +27,10 @@ const studentImportRowSchema = Joi.object({
   phone: Joi.string().trim().allow('').optional(),
   parentEmail: Joi.string().trim().email().allow('').optional(),
   parentPhone: Joi.string().trim().allow('').optional(),
+  gender: Joi.string().trim().valid('Male', 'Female', 'Other', 'Prefer not to say').required().messages({
+    'any.only': 'Gender must be one of Male, Female, Other, or Prefer not to say.',
+    'any.required': 'Gender is required.',
+  }),
   departmentCode: Joi.string().trim().min(2).required().messages({
     'string.min': 'Department code must be at least 2 characters long.',
     'any.required': 'Department code is required.',
@@ -48,6 +52,7 @@ const COLUMN_ALIASES = {
   phone: ['phone', 'mobile', 'phone number'],
   parentEmail: ['parentemail', 'parent email', 'guardian email'],
   parentPhone: ['parentphone', 'parent phone', 'guardian phone'],
+  gender: ['gender', 'sex'],
   departmentCode: ['department', 'dept', 'department code', 'dept code'],
   classBatchName: ['classbatch', 'class batch', 'class', 'batch'],
 };
@@ -162,6 +167,7 @@ async function importStudents(req, res) {
     const phone = cellText(row, columnMap.phone);
     const parentEmail = cellText(row, columnMap.parentEmail).toLowerCase();
     const parentPhone = cellText(row, columnMap.parentPhone);
+    const gender = cellText(row, columnMap.gender);
 
     const rowResult = { row: rowNum, rollNo, name, status: 'failed', message: '' };
 
@@ -174,6 +180,7 @@ async function importStudents(req, res) {
         phone: phone || '',
         parentEmail: parentEmail || '',
         parentPhone: parentPhone || '',
+        gender,
         departmentCode: deptCode,
         classBatchName,
       };
@@ -218,6 +225,7 @@ async function importStudents(req, res) {
         phone: phone || undefined,
         parentEmail: parentEmail || undefined,
         parentPhone: parentPhone || undefined,
+        gender: gender || 'Prefer not to say',
         department: department._id,
         classBatch: classBatch._id,
         academicYearJoined: activeYear._id,
@@ -286,6 +294,7 @@ async function downloadTemplate(req, res) {
     { header: 'Phone', key: 'phone', width: 16 },
     { header: 'ParentEmail', key: 'parentEmail', width: 28 },
     { header: 'ParentPhone', key: 'parentPhone', width: 16 },
+    { header: 'Gender', key: 'gender', width: 16 },
     { header: 'Department', key: 'departmentCode', width: 14 },
     { header: 'ClassBatch', key: 'classBatchName', width: 16 },
   ];
@@ -299,6 +308,7 @@ async function downloadTemplate(req, res) {
     phone: '9876543210',
     parentEmail: 'parent@example.com',
     parentPhone: '9876500000',
+    gender: 'Female',
     departmentCode: 'IT',
     classBatchName: 'IT-4A',
   });

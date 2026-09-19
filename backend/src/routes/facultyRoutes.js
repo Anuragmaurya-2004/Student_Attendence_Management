@@ -22,6 +22,10 @@ const createFacultySchema = Joi.object({
     'string.min': 'Password must be at least 8 characters long.',
     'any.required': 'Password is required.',
   }),
+  gender: Joi.string().valid('Male', 'Female', 'Other', 'Prefer not to say').required().messages({
+    'any.only': 'Gender must be one of Male, Female, Other, or Prefer not to say.',
+    'any.required': 'Gender is required.',
+  }),
   department: objectIdSchema.messages({
     'string.pattern.base': 'Department ID is invalid.',
     'any.required': 'Department is required.',
@@ -36,6 +40,7 @@ const updateFacultySchema = Joi.object({
   name: Joi.string().trim().min(2).optional(),
   email: Joi.string().trim().email().optional(),
   password: Joi.string().trim().min(8).optional(),
+  gender: Joi.string().valid('Male', 'Female', 'Other', 'Prefer not to say').optional(),
   department: Joi.string().pattern(/^[a-fA-F0-9]{24}$/).optional(),
   phone: Joi.string().trim().allow('').optional(),
   coursesAssigned: Joi.array().items(Joi.string().pattern(/^[a-fA-F0-9]{24}$/)).optional(),

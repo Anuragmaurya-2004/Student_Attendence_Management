@@ -31,17 +31,26 @@ async function sendMail({ to, subject, html }) {
   return info;
 }
 
-function defaulterEmailTemplate({ studentName, courseName, type, attendancePercent, threshold }) {
+function defaulterEmailTemplate({ studentName, courseName, type, attendancePercent, threshold, recipientType = 'student' }) {
+  const isParent = recipientType === 'parent';
+  const greeting = isParent ? 'Dear Parent,' : `Dear ${studentName},`;
+  const attendanceMessage = isParent
+    ? `This is to inform you that your child, <b>${studentName}</b>, has <b>${type}</b> attendance in <b>${courseName}</b> below the required threshold.`
+    : `Your <b>${type}</b> attendance in <b>${courseName}</b> has fallen below the required threshold.`;
+  const actionText = isParent
+    ? 'Please encourage your child to attend classes regularly and contact the department office for support if needed.'
+    : 'Please ensure regular attendance to avoid being debarred from examinations. Contact your department office if you have concerns.';
+
   return `
     <div style="font-family: Arial, sans-serif; max-width: 600px;">
       <h2 style="color:#c0392b;">Attendance Alert: ${courseName}</h2>
-      <p>Dear ${studentName},</p>
-      <p>Your <b>${type}</b> attendance in <b>${courseName}</b> has fallen below the required threshold.</p>
+      <p>${greeting}</p>
+      <p>${attendanceMessage}</p>
       <table style="border-collapse: collapse; margin: 12px 0;">
         <tr><td style="padding:4px 12px; border:1px solid #ddd;">Current Attendance</td><td style="padding:4px 12px; border:1px solid #ddd;"><b>${attendancePercent}%</b></td></tr>
         <tr><td style="padding:4px 12px; border:1px solid #ddd;">Required Minimum</td><td style="padding:4px 12px; border:1px solid #ddd;">${threshold}%</td></tr>
       </table>
-      <p>Please ensure regular attendance to avoid being debarred from examinations. Contact your department office if you have concerns.</p>
+      <p>${actionText}</p>
       <p style="color:#888; font-size: 12px;">This is an automated message from the Attendance Management System.</p>
     </div>
   `;

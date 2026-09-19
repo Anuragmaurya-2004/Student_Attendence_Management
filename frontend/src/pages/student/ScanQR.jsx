@@ -89,30 +89,38 @@ export default function ScanQR() {
   }, []);
 
   return (
-    <div>
-      <h1 className="text-xl font-bold text-gray-800 mb-4">Scan QR to Mark Attendance</h1>
+    <div className="mx-auto max-w-2xl space-y-6">
+      <div className="rounded-[28px] border border-brand-100 bg-gradient-to-r from-brand-700 via-brand-600 to-brand-500 p-5 text-white shadow-soft sm:p-6">
+        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-brand-100">Check-in</p>
+        <h1 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">Scan QR to Mark Attendance</h1>
+        <p className="mt-2 text-sm text-brand-50/90">Use your device camera and current location to verify your presence securely.</p>
+      </div>
+
       <Card>
         <div className="flex flex-col items-center gap-4">
-          <div id={SCANNER_ELEMENT_ID} className="w-full max-w-sm rounded-lg overflow-hidden bg-gray-100" style={{ minHeight: scanning ? 250 : 0 }} />
+          <div id={SCANNER_ELEMENT_ID} className="w-full max-w-sm overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 shadow-inner ring-1 ring-slate-200" style={{ minHeight: scanning ? 250 : 0 }} />
 
           {!scanning && (
-            <Button onClick={startScanning}>📷 Start Camera & Scan</Button>
+            <Button onClick={startScanning} className="min-w-[190px] inline-flex items-center gap-2">
+              <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4"><path d="M9 2.75a1 1 0 0 1 1 1V4h4v-.25a1 1 0 1 1 2 0V4h1.25A2.75 2.75 0 0 1 20 6.75v10.5A2.75 2.75 0 0 1 17.25 20H6.75A2.75 2.75 0 0 1 4 17.25V6.75A2.75 2.75 0 0 1 6.75 4H8v-.25a1 1 0 0 1 1-1Zm3 6.25a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm0 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4Z" fill="currentColor"/></svg>
+              Start Camera & Scan
+            </Button>
           )}
           {scanning && (
-            <Button variant="secondary" onClick={stopScanning}>Stop Scanning</Button>
+            <Button variant="secondary" onClick={stopScanning} className="min-w-[190px]">Stop Scanning</Button>
           )}
 
           {result && (
             <div
-              className={`w-full max-w-sm text-center p-4 rounded-lg ${
-                result.success ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'
+              className={`w-full max-w-sm rounded-2xl border p-4 text-center text-sm font-medium ${
+                result.success ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-red-200 bg-red-50 text-red-700'
               }`}
             >
               {result.message}
             </div>
           )}
 
-          <p className="text-xs text-gray-400 text-center max-w-sm">
+          <p className="max-w-sm text-center text-xs text-slate-500">
             Ask your faculty to display the rotating session QR code, then scan it here inside the configured classroom. Camera and location permissions are required.
           </p>
         </div>
