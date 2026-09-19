@@ -27,25 +27,49 @@ async function runDefaulterCheckAndNotify() {
     const student = await Student.findById(d.student);
     if (!student) continue;
 
-    const html = defaulterEmailTemplate({
+    const studentHtml = defaulterEmailTemplate({
       studentName: student.name,
       courseName: d.courseName,
       type: d.type,
       attendancePercent: d.attendancePercent,
       threshold: d.threshold,
+      recipientType: 'student',
     });
 
-    const recipients = [student.email, student.parentEmail].filter(Boolean).join(',');
-    if (recipients) {
-      try {
-        await sendMail({ to: recipients, subject: `Attendance Alert: ${d.courseName} (${d.type})`, html });
-        log.notifiedAt = new Date();
-        log.channel = 'email';
-        await log.save();
-        console.log(`[Cron] Notified ${student.email} for ${d.courseName} (${d.type}) - ${d.attendancePercent}%`);
-      } catch (err) {
-        console.error(`[Cron] Failed to notify ${student.email}:`, err.message);
+    const parentHtml = student.parentEmail
+      ? defaulterEmailTemplate({
+          studentName: student.name,
+          courseName: d.courseName,
+          type: d.type,
+          attendancePercent: d.attendancePercent,
+          threshold: d.threshold,
+          recipientType: 'parent',
+        })
+      : null;
+
+    try {
+      if (student.email) {
+        await sendMail({
+          to: student.email,
+          subject: `Your attendance alert: ${d.courseName} (${d.type})`,
+          html: studentHtml,
+        });
       }
+
+      if (student.parentEmail && parentHtml) {
+        await sendMail({
+          to: student.parentEmail,
+          subject: `Attendance alert for your child: ${d.courseName} (${d.type})`,
+          html: parentHtml,
+        });
+      }
+
+      log.notifiedAt = new Date();
+      log.channel = 'email';
+      await log.save();
+      console.log(`[Cron] Notified ${student.email} and parent for ${d.courseName} (${d.type}) - ${d.attendancePercent}%`);
+    } catch (err) {
+      console.error(`[Cron] Failed to notify ${student.email}:`, err.message);
     }
   }
   console.log(`[Cron] Defaulter check complete. ${defaulters.length} defaulter records found.`);

@@ -89,16 +89,52 @@ export default function FacultySessions() {
     }
   };
 
+  const stats = {
+    total: sessions.length,
+    held: sessions.filter((session) => session.status === 'held').length,
+    scheduled: sessions.filter((session) => session.status === 'scheduled').length,
+  };
+
   return (
-    <div>
-      <h1 className="text-xl font-bold text-gray-800 mb-4">My Sessions</h1>
+    <div className="space-y-6">
+      <div className="rounded-[28px] border border-brand-100 bg-gradient-to-r from-brand-700 via-brand-600 to-brand-500 p-5 text-white shadow-soft sm:p-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-brand-100">Faculty</p>
+            <h1 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">My Sessions</h1>
+          </div>
+          <div className="inline-flex items-center gap-2 self-start rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-medium text-brand-50 backdrop-blur-sm">
+            <span className="h-2 w-2 rounded-full bg-emerald-300" />
+            Session planner active
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-3 sm:grid-cols-3">
+          <div className="rounded-2xl border border-white/10 bg-white/8 p-3 backdrop-blur-sm">
+            <p className="text-xs uppercase tracking-[0.18em] text-brand-100">Total sessions</p>
+            <p className="mt-2 text-2xl font-bold">{stats.total}</p>
+            <p className="text-sm text-brand-50/80">all planned sessions</p>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-white/8 p-3 backdrop-blur-sm">
+            <p className="text-xs uppercase tracking-[0.18em] text-brand-100">Held</p>
+            <p className="mt-2 text-2xl font-bold">{stats.held}</p>
+            <p className="text-sm text-brand-50/80">sessions completed</p>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-white/8 p-3 backdrop-blur-sm">
+            <p className="text-xs uppercase tracking-[0.18em] text-brand-100">Scheduled</p>
+            <p className="mt-2 text-2xl font-bold">{stats.scheduled}</p>
+            <p className="text-sm text-brand-50/80">upcoming sessions</p>
+          </div>
+        </div>
+      </div>
+
       <Card title="Schedule a New Session">
         {user.role === 'faculty' && (!facultyProfile?.coursesAssigned?.length || !facultyProfile?.classBatchesAssigned?.length) && (
-          <p className="mb-3 rounded-lg border border-yellow-200 bg-yellow-50 px-3 py-2 text-sm text-yellow-800">
+          <p className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-800 shadow-sm">
             An administrator must assign you at least one subject and class before you can schedule sessions.
           </p>
         )}
-        <form onSubmit={handleSubmit} className="grid md:grid-cols-4 gap-3">
+        <form onSubmit={handleSubmit} className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <div>
             <Select value={form.course} onChange={(e) => handleCourseChange(e.target.value)} error={errors.course}>
               <option value="">Select Course</option>
@@ -156,7 +192,9 @@ export default function FacultySessions() {
             />
             {errors.durationHours && <p className="mt-1 text-xs text-red-500">{errors.durationHours}</p>}
           </div>
-          <Button type="submit">+ Create Session</Button>
+          <div className="md:col-span-2 xl:col-span-4">
+            <Button type="submit" className="w-full sm:w-auto">+ Create Session</Button>
+          </div>
         </form>
       </Card>
 
@@ -174,7 +212,7 @@ export default function FacultySessions() {
               header: '',
               render: (r) => (
                 <Link to={`/faculty/sessions/${r._id}`}>
-                  <Button variant="outline" className="!py-1 !px-2 text-xs">Manage</Button>
+                  <Button variant="outline" className="!py-1.5 !px-2.5 text-xs">Manage</Button>
                 </Link>
               ),
             },

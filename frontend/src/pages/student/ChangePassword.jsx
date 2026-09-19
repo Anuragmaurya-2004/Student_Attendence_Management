@@ -59,9 +59,12 @@ export default function ChangePassword() {
   };
 
   return (
-    <div className="max-w-md mx-auto mt-10 bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-      <h1 className="text-2xl font-bold text-gray-800 mb-2">Set Your New Password</h1>
-      <p className="text-sm text-gray-500 mb-6">
+    <div className="mx-auto max-w-md rounded-[28px] border border-slate-200 bg-white p-5 shadow-soft sm:p-7">
+      <div className="mb-6 rounded-2xl bg-gradient-to-r from-brand-700 via-brand-600 to-brand-500 p-4 text-white">
+        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-brand-100">Security</p>
+        <h1 className="mt-2 text-2xl font-bold tracking-tight">Set Your New Password</h1>
+      </div>
+      <p className="mb-6 text-sm text-slate-500">
         This is your first login, so please choose a new password before continuing.
       </p>
 
@@ -93,7 +96,7 @@ export default function ChangePassword() {
           onChange={handleChange}
         />
 
-        <Button type="submit" className="w-full" disabled={busy}>
+        <Button type="submit" className="w-full rounded-xl py-3" disabled={busy}>
           {busy ? 'Updating...' : 'Update Password'}
         </Button>
       </form>

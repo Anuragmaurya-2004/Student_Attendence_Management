@@ -145,8 +145,19 @@ export default function AcademicSetup() {
   };
 
   return (
-    <div>
-      <h1 className="text-xl font-bold text-gray-800 mb-4">Academic Setup</h1>
+    <div className="space-y-6">
+      <div className="rounded-[30px] border border-indigo-200/80 bg-gradient-to-r from-indigo-100 via-violet-100 to-white p-5 text-slate-900 shadow-[0_18px_36px_rgba(79,70,229,0.08)] sm:p-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-indigo-600">Academic configuration</p>
+            <h1 className="mt-2 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">Academic Setup</h1>
+          </div>
+          <div className="inline-flex items-center gap-2 self-start rounded-full border border-slate-200 bg-white/80 px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm">
+            <span className="h-2 w-2 rounded-full bg-emerald-500" />
+            Enrollment data synced
+          </div>
+        </div>
+      </div>
 
       <div className="grid md:grid-cols-2 gap-5">
         {/* Academic Years */}
@@ -474,7 +485,10 @@ export default function AcademicSetup() {
             </div>
           </form>
           <div className="mt-4 mb-4 flex flex-wrap items-center gap-3">
-            <Button variant="outline" type="button" onClick={handleCourseDownloadTemplate}>⬇ Download Template</Button>
+            <Button variant="outline" type="button" onClick={handleCourseDownloadTemplate} className="inline-flex items-center gap-2">
+              <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4"><path d="M12 3.5a1 1 0 0 1 1 1V12l2.3-2.3a1 1 0 1 1 1.4 1.4l-4 4a1 1 0 0 1-1.4 0l-4-4a1 1 0 1 1 1.4-1.4L11 12V4.5a1 1 0 0 1 1-1Zm-7 12a1 1 0 0 1 1 1v1.5h12V16.5a1 1 0 1 1 2 0v2.5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-2.5a1 1 0 0 1 1-1Z" fill="currentColor"/></svg>
+              Download Template
+            </Button>
             <input ref={courseFileInputRef} type="file" accept=".xlsx,.xls,.csv" onChange={handleCourseFileImport} disabled={courseImporting} className="text-sm" />
             {courseImporting && <span className="text-sm text-gray-500">Importing...</span>}
           </div>

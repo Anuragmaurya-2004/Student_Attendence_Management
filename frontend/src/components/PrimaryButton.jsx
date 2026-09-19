@@ -11,8 +11,8 @@ export default function PrimaryButton({
 }) {
   const classes = [
     'inline-flex items-center justify-center rounded-xl px-5 py-3 text-sm font-semibold transition-all duration-200',
-    'bg-brand-600 text-white',
-    disabled ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'hover:bg-brand-700 active:scale-[0.98]',
+    'bg-gradient-to-r from-brand-600 to-brand-500 text-white shadow-card',
+    disabled ? 'bg-slate-300 text-slate-500 cursor-not-allowed shadow-none' : 'hover:from-brand-700 hover:to-brand-600 active:scale-[0.98]',
     className,
   ].join(' ');
 

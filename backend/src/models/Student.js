@@ -10,6 +10,11 @@ const studentSchema = new mongoose.Schema(
     phone: { type: String, trim: true },
     parentEmail: { type: String, trim: true, lowercase: true },
     parentPhone: { type: String, trim: true },
+    gender: {
+      type: String,
+      enum: ['Male', 'Female', 'Other', 'Prefer not to say'],
+      default: 'Prefer not to say',
+    },
     department: { type: mongoose.Schema.Types.ObjectId, ref: 'Department', required: true },
     classBatch: { type: mongoose.Schema.Types.ObjectId, ref: 'ClassBatch', required: true },
     academicYearJoined: { type: mongoose.Schema.Types.ObjectId, ref: 'AcademicYear', required: true },
