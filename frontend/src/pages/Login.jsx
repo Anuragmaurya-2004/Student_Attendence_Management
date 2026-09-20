@@ -42,9 +42,16 @@ export default function Login() {
     e.preventDefault();
     if (!validateForm()) return;
 
+    console.log('[Login] Attempting login', {
+      role,
+      email,
+      passwordLength: password.length,
+    });
+
     setBusy(true);
     try {
       const user = role === 'student' ? await loginStudent(email, password) : await loginFaculty(email, password);
+      console.log('[Login] Success response', user);
       toast.success(`Welcome, ${user.name}`);
 
       if (role === 'student' && user.mustChangePassword) {
@@ -54,6 +61,13 @@ export default function Login() {
 
       navigate(`/${user.role}`);
     } catch (err) {
+      console.error('[Login] Failed request', {
+        role,
+        email,
+        status: err.response?.status,
+        data: err.response?.data,
+        message: err.message,
+      });
       toast.error(err.response?.data?.message || 'Login failed');
     } finally {
       setBusy(false);
