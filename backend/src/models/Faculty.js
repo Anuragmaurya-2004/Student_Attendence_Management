@@ -7,6 +7,11 @@ const facultySchema = new mongoose.Schema(
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
     password: { type: String, required: true, select: false },
     phone: { type: String, trim: true },
+    gender: {
+      type: String,
+      enum: ['Male', 'Female', 'Other', 'Prefer not to say'],
+      default: 'Prefer not to say',
+    },
     designation: { type: String, default: 'Assistant Professor', trim: true },
     department: { type: mongoose.Schema.Types.ObjectId, ref: 'Department', required: true },
     coursesAssigned: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Course' }],

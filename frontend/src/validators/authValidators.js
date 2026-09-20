@@ -54,6 +54,11 @@ export const facultySchema = Joi.object({
     'string.empty': 'Password is required.',
     'string.min': 'Password must be at least 8 characters.',
   }),
+  gender: Joi.string().valid('Male', 'Female', 'Other', 'Prefer not to say').required().messages({
+    'any.only': 'Gender is required.',
+    'any.required': 'Gender is required.',
+    'string.empty': 'Gender is required.',
+  }),
   department: Joi.string().required().messages({ 'string.empty': 'Department is required.' }),
   role: Joi.string().valid('faculty', 'admin').optional(),
 });
@@ -85,6 +90,11 @@ export const studentSchema = Joi.object({
   }),
   parentEmail: Joi.string().allow('').pattern(REGEX.email).messages({
     'string.pattern.base': 'Please enter a valid parent email.',
+  }),
+  gender: Joi.string().valid('Male', 'Female', 'Other', 'Prefer not to say').required().messages({
+    'any.only': 'Gender is required.',
+    'any.required': 'Gender is required.',
+    'string.empty': 'Gender is required.',
   }),
   department: Joi.string().required().messages({ 'string.empty': 'Department is required.' }),
   classBatch: Joi.string().required().messages({ 'string.empty': 'Class batch is required.' }),
@@ -166,6 +176,53 @@ export const courseSchema = Joi.object({
     'number.min': 'Weekly hours must be greater than 0.',
   }),
   academicYear: Joi.string().required().messages({ 'string.empty': 'Academic year is required.' }),
+});
+
+export const onDutySchema = Joi.object({
+  formBatch: Joi.string().required().messages({ 'string.empty': 'Class batch is required.' }),
+  formStudents: Joi.array().items(Joi.string()).min(1).required().messages({
+    'array.min': 'Select at least one student.',
+    'any.required': 'Select at least one student.',
+  }),
+  activityType: Joi.string().trim().required().messages({ 'string.empty': 'Activity type is required.' }),
+  eventTitle: Joi.string().trim().required().min(2).messages({
+    'string.empty': 'Event title is required.',
+    'string.min': 'Event title must be at least 2 characters.',
+  }),
+  fromDate: Joi.string().required().messages({ 'string.empty': 'From date is required.' }),
+  toDate: Joi.string().required().messages({ 'string.empty': 'To date is required.' }),
+  remarks: Joi.string().trim().allow('').optional(),
+}).custom((value, helpers) => {
+  if (value.fromDate && value.toDate && new Date(value.toDate) < new Date(value.fromDate)) {
+    return helpers.message('To date cannot be earlier than from date.');
+  }
+  return value;
+});
+
+export const rolloverSchema = Joi.object({
+  toYear: Joi.string().required().messages({ 'string.empty': 'Target academic year is required.' }),
+  mappings: Joi.array().items(
+    Joi.object({
+      fromClassBatch: Joi.string().allow('').optional(),
+      toClassBatch: Joi.string().allow('').optional(),
+    })
+  ).optional(),
+  graduating: Joi.array().items(Joi.string()).optional(),
+}).custom((value, helpers) => {
+  const validMappings = (value.mappings || []).filter((m) => m.fromClassBatch && m.toClassBatch);
+  const hasIncompleteMapping = (value.mappings || []).some(
+    (m) => (m.fromClassBatch && !m.toClassBatch) || (!m.fromClassBatch && m.toClassBatch)
+  );
+
+  if (hasIncompleteMapping) {
+    return helpers.message('Each mapping must include both the source and target class batch.');
+  }
+
+  if (validMappings.length === 0 && (!value.graduating || value.graduating.length === 0)) {
+    return helpers.message('Add at least one class mapping or choose one graduating batch.');
+  }
+
+  return value;
 });
 
 export const validateLoginForm = (data) => {
@@ -250,5 +307,15 @@ export const validateBatchForm = (data) => {
 
 export const validateCourseForm = (data) => {
   const { error } = courseSchema.validate(data, { abortEarly: false });
+  return createErrorMap(error);
+};
+
+export const validateOnDutyForm = (data) => {
+  const { error } = onDutySchema.validate(data, { abortEarly: false });
+  return createErrorMap(error);
+};
+
+export const validateRolloverForm = (data) => {
+  const { error } = rolloverSchema.validate(data, { abortEarly: false });
   return createErrorMap(error);
 };

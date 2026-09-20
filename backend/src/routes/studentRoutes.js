@@ -29,6 +29,10 @@ const createStudentSchema = Joi.object({
   phone: Joi.string().trim().allow('').optional(),
   parentEmail: Joi.string().trim().email().allow('').optional(),
   parentPhone: Joi.string().trim().allow('').optional(),
+  gender: Joi.string().valid('Male', 'Female', 'Other', 'Prefer not to say').required().messages({
+    'any.only': 'Gender must be one of Male, Female, Other, or Prefer not to say.',
+    'any.required': 'Gender is required.',
+  }),
   department: objectIdSchema.required().messages({
     'string.pattern.base': 'Department ID is invalid.',
     'any.required': 'Department is required.',
@@ -57,6 +61,7 @@ const updateStudentSchema = Joi.object({
   phone: Joi.string().trim().allow('').optional(),
   parentEmail: Joi.string().trim().email().allow('').optional(),
   parentPhone: Joi.string().trim().allow('').optional(),
+  gender: Joi.string().valid('Male', 'Female', 'Other', 'Prefer not to say').optional(),
   department: objectIdSchema.optional(),
   classBatch: objectIdSchema.optional(),
   academicYearJoined: objectIdSchema.optional(),

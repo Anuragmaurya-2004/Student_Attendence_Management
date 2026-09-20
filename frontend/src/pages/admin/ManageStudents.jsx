@@ -1,8 +1,20 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import api from '../../api/client';
 import { Card, Button, Input, Select, Table, Badge } from '../../components/ui';
 import { validateStudentForm } from '../../validators';
 import toast from 'react-hot-toast';
+
+const classOrder = { FE: 1, SE: 2, TE: 3, BE: 4 };
+
+const getClassLabel = (student) => {
+  const semester = Number(student?.classBatch?.semester ?? 0);
+
+  if (!semester) return 'Unassigned';
+  if (semester <= 2) return 'FE';
+  if (semester <= 4) return 'SE';
+  if (semester <= 6) return 'TE';
+  return 'BE';
+};
 
 export default function ManageStudents() {
   const [students, setStudents] = useState([]);
@@ -15,10 +27,10 @@ export default function ManageStudents() {
     email: '',
     password: '',
     parentEmail: '',
+    gender: 'Male',
     department: '',
     classBatch: '',
     academicYearJoined: '',
-    currentAcademicYear: '',
     currentAcademicYear: '',
   });
   const [errors, setErrors] = useState({
@@ -27,6 +39,7 @@ export default function ManageStudents() {
     email: '',
     password: '',
     parentEmail: '',
+    gender: '',
     department: '',
     classBatch: '',
     academicYearJoined: '',
@@ -60,6 +73,7 @@ export default function ManageStudents() {
       email: nextErrors.email || '',
       password: nextErrors.password || '',
       parentEmail: nextErrors.parentEmail || '',
+      gender: nextErrors.gender || '',
       department: nextErrors.department || '',
       classBatch: nextErrors.classBatch || '',
       academicYearJoined: nextErrors.academicYearJoined || '',
@@ -81,10 +95,10 @@ export default function ManageStudents() {
         email: '',
         password: '',
         parentEmail: '',
+        gender: 'Male',
         department: '',
         classBatch: '',
         academicYearJoined: '',
-        currentAcademicYear: '',
         currentAcademicYear: '',
       });
       setErrors({
@@ -93,6 +107,7 @@ export default function ManageStudents() {
         email: '',
         password: '',
         parentEmail: '',
+        gender: '',
         department: '',
         classBatch: '',
         academicYearJoined: '',
@@ -147,9 +162,52 @@ export default function ManageStudents() {
     }
   };
 
+  const groupedStudents = useMemo(() => {
+    const departmentMap = {};
+
+    students.forEach((student) => {
+      const departmentName = student.department?.name || 'Unassigned';
+      const classLabel = getClassLabel(student);
+
+      if (!departmentMap[departmentName]) {
+        departmentMap[departmentName] = {};
+      }
+
+      if (!departmentMap[departmentName][classLabel]) {
+        departmentMap[departmentName][classLabel] = [];
+      }
+
+      departmentMap[departmentName][classLabel].push(student);
+    });
+
+    return Object.entries(departmentMap)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([departmentName, classGroups]) => ({
+        departmentName,
+        classGroups: Object.entries(classGroups)
+          .sort(([left], [right]) => (classOrder[left] || 99) - (classOrder[right] || 99))
+          .map(([classLabel, list]) => ({
+            classLabel,
+            students: list.sort((a, b) => a.name.localeCompare(b.name)),
+          })),
+      }));
+  }, [students]);
+
   return (
-    <div>
-      <h1 className="text-xl font-bold text-gray-800 mb-4">Manage Students</h1>
+    <div className="space-y-6">
+      <div className="rounded-[30px] border border-indigo-200/80 bg-gradient-to-r from-indigo-100 via-violet-100 to-white p-5 text-slate-900 shadow-[0_18px_36px_rgba(79,70,229,0.08)] sm:p-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-indigo-600">Student operations</p>
+            <h1 className="mt-2 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">Manage Students</h1>
+          </div>
+          <div className="inline-flex items-center gap-2 self-start rounded-full border border-slate-200 bg-white/80 px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm">
+            <span className="h-2 w-2 rounded-full bg-emerald-500" />
+            Student intake active
+          </div>
+        </div>
+      </div>
+
       <Card title="Add Student">
         <form onSubmit={handleSubmit} className="grid md:grid-cols-3 gap-3">
           <div>
@@ -171,6 +229,15 @@ export default function ManageStudents() {
           <div>
             <Input type="email" placeholder="Parent Email (optional)" value={form.parentEmail} onChange={(e) => setForm({ ...form, parentEmail: e.target.value })} error={errors.parentEmail} />
             {errors.parentEmail && <p className="mt-1 text-xs text-red-500">{errors.parentEmail}</p>}
+          </div>
+          <div>
+            <Select value={form.gender} onChange={(e) => setForm({ ...form, gender: e.target.value })} error={errors.gender}>
+              <option value="Male">Male</option>
+              <option value="Female">Female</option>
+              <option value="Other">Other</option>
+              <option value="Prefer not to say">Prefer not to say</option>
+            </Select>
+            {errors.gender && <p className="mt-1 text-xs text-red-500">{errors.gender}</p>}
           </div>
           <div>
             <Select value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })} error={errors.department}>
@@ -212,14 +279,15 @@ export default function ManageStudents() {
       </Card>
 
       <Card title="Bulk Import from Excel / CSV">
-        <p className="text-sm text-gray-500 mb-3">
+        <p className="mb-3 text-sm text-slate-600">
           Add an entire class in one go instead of one by one. Download the template, fill in your
           students, and upload it back here. Rows with missing passwords get a random one
           auto-generated - the results below will show it so you can share it with each student.
         </p>
         <div className="flex flex-wrap items-center gap-3">
-          <Button variant="outline" onClick={handleDownloadTemplate} type="button">
-            ⬇ Download Template
+          <Button variant="outline" onClick={handleDownloadTemplate} type="button" className="inline-flex items-center gap-2">
+            <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4"><path d="M12 3.5a1 1 0 0 1 1 1V12l2.3-2.3a1 1 0 1 1 1.4 1.4l-4 4a1 1 0 0 1-1.4 0l-4-4a1 1 0 1 1 1.4-1.4L11 12V4.5a1 1 0 0 1 1-1Zm-7 12a1 1 0 0 1 1 1v1.5h12V16.5a1 1 0 1 1 2 0v2.5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-2.5a1 1 0 0 1 1-1Z" fill="currentColor"/></svg>
+            Download Template
           </Button>
           <input
             ref={fileInputRef}
@@ -259,16 +327,63 @@ export default function ManageStudents() {
       </Card>
 
       <Card title={`All Students (${students.length})`}>
-        <Table
-          columns={[
-            { key: 'rollNo', header: 'Roll No' },
-            { key: 'name', header: 'Name' },
-            { key: 'email', header: 'Email' },
-            { key: 'classBatch', header: 'Class', render: (r) => r.classBatch?.name },
-            { key: 'status', header: 'Status' },
-          ]}
-          data={students}
-        />
+        <div className="space-y-5">
+          {groupedStudents.map(({ departmentName, classGroups }) => (
+            <div key={departmentName} className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3 sm:p-4">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Department</p>
+                  <h3 className="mt-1 text-lg font-bold text-slate-900">{departmentName}</h3>
+                </div>
+                <Badge color="indigo">
+                  {classGroups.reduce((total, group) => total + group.students.length, 0)} students
+                </Badge>
+              </div>
+
+              <div className="space-y-4">
+                {classGroups.map(({ classLabel, students: groupedStudentsList }) => (
+                  <div key={`${departmentName}-${classLabel}`} className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <span className="rounded-full bg-brand-50 px-2.5 py-1 text-xs font-semibold text-brand-700">
+                          {classLabel}
+                        </span>
+                        <span className="text-sm text-slate-500">{groupedStudentsList.length} students</span>
+                      </div>
+                    </div>
+
+                    <div className="overflow-x-auto rounded-xl border border-slate-200 bg-slate-50/60">
+                      <table className="min-w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-slate-200 bg-white/70 text-left text-slate-600">
+                            <th className="py-3 pr-4 font-semibold">Roll No</th>
+                            <th className="py-3 pr-4 font-semibold">Name</th>
+                            <th className="py-3 pr-4 font-semibold">Email</th>
+                            <th className="py-3 pr-4 font-semibold">Class</th>
+                            <th className="py-3 pr-4 font-semibold">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {groupedStudentsList.map((student) => (
+                            <tr key={student._id} className="border-b border-slate-100 bg-white/60 last:border-0 hover:bg-slate-50/80">
+                              <td className="py-2.5 pr-4 font-medium text-slate-700">{student.rollNo}</td>
+                              <td className="py-2.5 pr-4 text-slate-700">{student.name}</td>
+                              <td className="py-2.5 pr-4 text-slate-600">{student.email}</td>
+                              <td className="py-2.5 pr-4 text-slate-700">{student.classBatch?.name || 'N/A'}</td>
+                              <td className="py-2.5 pr-4">
+                                <Badge color={student.status === 'active' ? 'green' : 'gray'}>{student.status || 'active'}</Badge>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
       </Card>
     </div>
   );

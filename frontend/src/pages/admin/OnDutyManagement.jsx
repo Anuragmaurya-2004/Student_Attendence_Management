@@ -3,6 +3,7 @@ import api from '../../api/client';
 import { Card, Button, Table, Badge, Select, TextInput } from '../../components/ui';
 import toast from 'react-hot-toast';
 import { format, differenceInCalendarDays } from 'date-fns';
+import { validateOnDutyForm } from '../../validators';
 
 const ACTIVITY_LABELS = {
   industrial_visit: 'Industrial Visit',
@@ -43,6 +44,14 @@ export default function OnDutyManagement() {
   const [toDate, setToDate] = useState('');
   const [remarks, setRemarks] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [formErrors, setFormErrors] = useState({
+    formBatch: '',
+    formStudents: '',
+    activityType: '',
+    eventTitle: '',
+    fromDate: '',
+    toDate: '',
+  });
 
   const loadRecords = useCallback(async () => {
     setLoading(true);
@@ -108,14 +117,27 @@ export default function OnDutyManagement() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formStudents.length) {
-      return toast.error('Please select at least one student');
-    }
-    if (!fromDate || !toDate) {
-      return toast.error('Please provide both From and To dates');
-    }
-    if (new Date(toDate) < new Date(fromDate)) {
-      return toast.error('To Date cannot be earlier than From Date');
+    const payload = {
+      formBatch,
+      formStudents,
+      activityType,
+      eventTitle,
+      fromDate,
+      toDate,
+      remarks,
+    };
+    const nextErrors = validateOnDutyForm(payload);
+    setFormErrors({
+      formBatch: nextErrors.formBatch || '',
+      formStudents: nextErrors.formStudents || '',
+      activityType: nextErrors.activityType || '',
+      eventTitle: nextErrors.eventTitle || '',
+      fromDate: nextErrors.fromDate || '',
+      toDate: nextErrors.toDate || '',
+    });
+
+    if (Object.values(nextErrors).some(Boolean)) {
+      return toast.error('Please complete the highlighted On-Duty fields.');
     }
 
     setSubmitting(true);
@@ -167,23 +189,27 @@ export default function OnDutyManagement() {
   };
 
   return (
-    <div>
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800">On-Duty & Multi-Day Visits</h1>
-          <p className="text-gray-500 text-sm mt-1">
-            Grant attendance credit for industrial visits, sports tournaments, hackathons, and cultural activities.
-          </p>
+    <div className="space-y-6">
+      <div className="rounded-[30px] border border-indigo-200/80 bg-gradient-to-r from-indigo-100 via-violet-100 to-white p-5 text-slate-900 shadow-[0_18px_36px_rgba(79,70,229,0.08)] sm:p-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-indigo-600">Student exemptions</p>
+            <h1 className="mt-2 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">On-Duty & Multi-Day Visits</h1>
+            <p className="mt-2 text-sm text-slate-600">
+              Grant attendance credit for industrial visits, sports tournaments, hackathons, and cultural activities.
+            </p>
+          </div>
+          <Button onClick={() => setShowModal(true)} className="inline-flex items-center gap-2 self-start">
+            <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4"><path d="M11 5a1 1 0 1 1 2 0v6h6a1 1 0 1 1 0 2h-6v6a1 1 0 1 1-2 0v-6H5a1 1 0 1 1 0-2h6V5Z" fill="currentColor"/></svg>
+            Grant On-Duty / Visit
+          </Button>
         </div>
-        <Button onClick={() => setShowModal(true)}>
-          ➕ Grant On-Duty / Visit
-        </Button>
       </div>
 
       <Card>
-        <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-gray-700">Filter by Batch:</span>
+            <span className="text-sm font-medium text-slate-700">Filter by Batch:</span>
             <select
               value={selectedBatch}
               onChange={(e) => setSelectedBatch(e.target.value)}
@@ -197,13 +223,13 @@ export default function OnDutyManagement() {
               ))}
             </select>
           </div>
-          <div className="text-sm text-gray-500">
-            Total Grants: <span className="font-semibold text-gray-800">{records.length}</span>
+          <div className="text-sm text-slate-500">
+            Total Grants: <span className="font-semibold text-slate-800">{records.length}</span>
           </div>
         </div>
 
         {loading ? (
-          <p className="text-gray-500 text-center py-6">Loading records...</p>
+          <p className="py-6 text-center text-slate-500">Loading records...</p>
         ) : (
           <Table
             columns={[
@@ -288,9 +314,10 @@ export default function OnDutyManagement() {
                   setShowModal(false);
                   resetForm();
                 }}
-                className="text-gray-400 hover:text-gray-600 text-xl"
+                className="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                aria-label="Close modal"
               >
-                ✕
+                <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4"><path d="m7.05 7.05 9.9 9.9a1 1 0 0 1-1.41 1.41L5.64 8.46A1 1 0 0 1 7.05 7.05Zm9.9 0L7.05 16.95a1 1 0 0 0 1.41 1.41l9.9-9.9A1 1 0 0 0 16.95 7.05Z" fill="currentColor"/></svg>
               </button>
             </div>
 
@@ -299,9 +326,11 @@ export default function OnDutyManagement() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Select Class Batch</label>
                 <select
                   value={formBatch}
-                  onChange={(e) => setFormBatch(e.target.value)}
-                  required
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-brand-500 focus:border-brand-500"
+                  onChange={(e) => {
+                    setFormBatch(e.target.value);
+                    if (formErrors.formBatch) setFormErrors((prev) => ({ ...prev, formBatch: '' }));
+                  }}
+                  className={`w-full border rounded-md px-3 py-2 text-sm focus:ring-brand-500 focus:border-brand-500 ${formErrors.formBatch ? 'border-red-300' : 'border-gray-300'}`}
                 >
                   <option value="">-- Choose Class Batch --</option>
                   {classBatches.map((b) => (
@@ -310,6 +339,7 @@ export default function OnDutyManagement() {
                     </option>
                   ))}
                 </select>
+                {formErrors.formBatch && <p className="mt-1 text-xs text-red-500">{formErrors.formBatch}</p>}
               </div>
 
               {formBatch && batchStudents.length > 0 && (
@@ -350,6 +380,7 @@ export default function OnDutyManagement() {
                   <p className="text-xs text-gray-500 mt-2">
                     Selected: <span className="font-bold text-brand-700">{formStudents.length}</span> students
                   </p>
+                  {formErrors.formStudents && <p className="mt-1 text-xs text-red-500">{formErrors.formStudents}</p>}
                 </div>
               )}
 
@@ -358,8 +389,11 @@ export default function OnDutyManagement() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Activity Category</label>
                   <select
                     value={activityType}
-                    onChange={(e) => setActivityType(e.target.value)}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-brand-500 focus:border-brand-500"
+                    onChange={(e) => {
+                      setActivityType(e.target.value);
+                      if (formErrors.activityType) setFormErrors((prev) => ({ ...prev, activityType: '' }));
+                    }}
+                    className={`w-full border rounded-md px-3 py-2 text-sm focus:ring-brand-500 focus:border-brand-500 ${formErrors.activityType ? 'border-red-300' : 'border-gray-300'}`}
                   >
                     {Object.entries(ACTIVITY_LABELS).map(([key, label]) => (
                       <option key={key} value={key}>
@@ -387,23 +421,29 @@ export default function OnDutyManagement() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">From Date</label>
                   <input
                     type="date"
-                    required
                     value={fromDate}
-                    onChange={(e) => setFromDate(e.target.value)}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-brand-500 focus:border-brand-500"
+                    onChange={(e) => {
+                      setFromDate(e.target.value);
+                      if (formErrors.fromDate) setFormErrors((prev) => ({ ...prev, fromDate: '' }));
+                    }}
+                    className={`w-full border rounded-md px-3 py-2 text-sm focus:ring-brand-500 focus:border-brand-500 ${formErrors.fromDate ? 'border-red-300' : 'border-gray-300'}`}
                   />
+                  {formErrors.fromDate && <p className="mt-1 text-xs text-red-500">{formErrors.fromDate}</p>}
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">To Date (Multi-Day)</label>
                   <input
                     type="date"
-                    required
                     min={fromDate}
                     value={toDate}
-                    onChange={(e) => setToDate(e.target.value)}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-brand-500 focus:border-brand-500"
+                    onChange={(e) => {
+                      setToDate(e.target.value);
+                      if (formErrors.toDate) setFormErrors((prev) => ({ ...prev, toDate: '' }));
+                    }}
+                    className={`w-full border rounded-md px-3 py-2 text-sm focus:ring-brand-500 focus:border-brand-500 ${formErrors.toDate ? 'border-red-300' : 'border-gray-300'}`}
                   />
+                  {formErrors.toDate && <p className="mt-1 text-xs text-red-500">{formErrors.toDate}</p>}
                 </div>
               </div>
 
@@ -447,8 +487,8 @@ export default function OnDutyManagement() {
                 <h3 className="font-bold text-gray-800">{viewStudentsModal.eventTitle}</h3>
                 <p className="text-xs text-gray-500">{viewStudentsModal.students?.length} enrolled students</p>
               </div>
-              <button onClick={() => setViewStudentsModal(null)} className="text-gray-400 hover:text-gray-600">
-                ✕
+              <button onClick={() => setViewStudentsModal(null)} className="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-600" aria-label="Close student list">
+                <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4"><path d="m7.05 7.05 9.9 9.9a1 1 0 0 1-1.41 1.41L5.64 8.46A1 1 0 0 1 7.05 7.05Zm9.9 0L7.05 16.95a1 1 0 0 0 1.41 1.41l9.9-9.9A1 1 0 0 0 16.95 7.05Z" fill="currentColor"/></svg>
               </button>
             </div>
             <div className="max-h-60 overflow-y-auto space-y-2 divide-y divide-gray-100">

@@ -10,6 +10,8 @@ export {
   academicYearSchema,
   batchSchema,
   courseSchema,
+  onDutySchema,
+  rolloverSchema,
   validateLoginForm,
   validateChangePasswordForm,
   validateFacultyForm,
@@ -20,4 +22,6 @@ export {
   validateAcademicYearForm,
   validateBatchForm,
   validateCourseForm,
+  validateOnDutyForm,
+  validateRolloverForm,
 } from './authValidators.js';
