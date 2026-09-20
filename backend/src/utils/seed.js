@@ -49,8 +49,8 @@ async function seed() {
 
   const prevAcademicYear = await AcademicYear.create({
     label: '2025-2026',
-    startDate: new Date('2025-07-01'),
-    endDate: new Date('2026-05-31'),
+    startDate: new Date('2026-06-10'),
+    endDate: new Date('2026-10-16'),
     isActive: false,
   });
   console.log(`Created Active Academic Year: ${academicYear.label}`);
@@ -105,13 +105,19 @@ async function seed() {
     academicYear: academicYear._id,
     semester: 5,
   });
+  const batchBEIT = await ClassBatch.create({
+    name: 'BE-IT (Sem 7)',
+    department: deptIT._id,
+    academicYear: academicYear._id,
+    semester: 7,
+  });
   const batchTEAIP = await ClassBatch.create({
     name: 'TE-AIDS (Sem 5)',
     department: deptAIDS._id,
     academicYear: academicYear._id,
     semester: 5,
   });
-  console.log('Created Class Batches: TE-CSE, BE-CSE, SE-IT, TE-IT, TE-AIDS');
+  console.log('Created Class Batches: TE-CSE, BE-CSE, SE-IT, TE-IT, BE-IT, TE-AIDS');
 
   // ==========================================
   // 4. HODs, ADMIN & TEACHERS (FACULTY)
@@ -141,7 +147,7 @@ async function seed() {
   });
 
   const hodIT = await Faculty.create({
-    name: 'Dr. Sunita Mehta (HOD IT)',
+    name: 'Prof. Sneha Sankhe (HOD IT)',
     email: 'hod.it@college.edu',
     password: 'Hod@1234',
     phone: '9822033445',
@@ -182,8 +188,8 @@ async function seed() {
   });
 
   const facultySneha = await Faculty.create({
-    name: 'Prof. Sneha Joshi',
-    email: 'sneha.joshi@college.edu',
+    name: 'Prof. Simran Patil',
+    email: 'simran.patil@college.edu',
     password: 'Faculty@123',
     phone: '9811006677',
     designation: 'Assistant Professor',
@@ -192,8 +198,8 @@ async function seed() {
   });
 
   const facultyVikram = await Faculty.create({
-    name: 'Prof. Vikram Patel',
-    email: 'vikram.patel@college.edu',
+    name: 'Prof. Sonali Karthik',
+    email: 'sonali.karthik@college.edu',
     password: 'Faculty@123',
     phone: '9811008899',
     designation: 'Assistant Professor',
@@ -214,7 +220,7 @@ async function seed() {
   console.log('Created Staff:');
   console.log(' - Admin: admin@college.edu');
   console.log(' - HODs: hod.cse@college.edu, hod.it@college.edu, hod.aids@college.edu');
-  console.log(' - Faculty: priya.sharma, amit.deshmukh, sneha.joshi, vikram.patel, neha.gupta');
+  console.log(' - Faculty: priya.sharma, amit.deshmukh, simran.patil, sonali.karthik, neha.gupta');
 
   // ==========================================
   // 5. COURSES (THEORY & PRACTICAL)
@@ -268,7 +274,7 @@ async function seed() {
 
   // IT Courses (Sem 5)
   const itWebTh = await Course.create({
-    name: 'Full-Stack Web Development',
+    name: 'Cyber security laws',
     code: 'IT501',
     department: deptIT._id,
     academicYear: academicYear._id,
@@ -279,7 +285,7 @@ async function seed() {
   });
 
   const itWebPr = await Course.create({
-    name: 'Web Engineering Lab',
+    name: 'Artificial Intelligence Lab',
     code: 'IT501L',
     department: deptIT._id,
     academicYear: academicYear._id,
@@ -358,15 +364,20 @@ async function seed() {
     { name: 'Neha Bhasin', rollNo: 'AI2603', email: 'student18@college.edu', batch: batchTEAIP._id, dept: deptAIDS._id, parentEmail: 'parent.nehab@gmail.com', phone: '9840033333' },
     { name: 'Nikhil Kamath', rollNo: 'AI2604', email: 'student19@college.edu', batch: batchTEAIP._id, dept: deptAIDS._id, parentEmail: 'parent.nikhil@gmail.com', phone: '9840044444' },
     { name: 'Shruti Iyer', rollNo: 'AI2605', email: 'student20@college.edu', batch: batchTEAIP._id, dept: deptAIDS._id, parentEmail: 'parent.shruti@gmail.com', phone: '9840055555' },
+
+    //BE-IT Students (Batch 4)
     {
       name: 'Anurag Maurya',
-      rollNo: 'CSE2611',
+      rollNo: 'IT3301',
       email: '233119@theemcoe.org',
       batch: batchTECSE._id,
       dept: deptCSE._id,
       parentEmail: 'anuragmaurya1114@gmail.com',
       phone: '9876543212',
     },
+    { name: 'Chintan Parave', rollNo: 'IT3302', email: '233127@theemcoe.org', batch: batchBEIT._id, dept: deptCSE._id, parentEmail: 'anuragmaurya1114@gmail.com', phone: '9876543213' },
+    { name: 'Atharva Patil', rollNo: 'IT3303', email: '233129@theemcoe.org', batch: batchBEIT._id, dept: deptCSE._id, parentEmail: 'anuragmaurya1114@gmail.com', phone: '9876543214' },
+    { name: 'Priya Mali ', rollNo: 'IT3304', email: '233117@theemcoe.org', batch: batchBEIT._id, dept: deptCSE._id, parentEmail: 'anuragmaurya1114@gmail.com', phone: '9876543215' }
   ];
 
   const createdStudents = [];

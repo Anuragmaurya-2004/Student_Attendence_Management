@@ -43,17 +43,28 @@ const validateRequest = (schema, req, res, next) => {
 // @desc Login for faculty/admin
 // @route POST /api/auth/faculty/login
 const facultyLogin = async (req, res) => {
+  console.log('[Backend Auth] facultyLogin start', { email: req.body?.email, role: 'faculty' });
+
   const { error } = loginSchema.validate(req.body, { abortEarly: false });
   if (error) {
+    console.log('[Backend Auth] facultyLogin validation failed', error.details);
     return res.status(400).json({ message: error.details.map((d) => d.message).join(', ') });
   }
 
   const { email, password } = req.body;
   const faculty = await Faculty.findOne({ email }).select('+password');
+  console.log('[Backend Auth] faculty lookup result', {
+    found: !!faculty,
+    email,
+    hasPassword: !!faculty?.password,
+  });
+
   if (!faculty || !(await faculty.comparePassword(password))) {
+    console.log('[Backend Auth] facultyLogin invalid credentials', { email });
     return res.status(401).json({ message: 'Invalid email or password' });
   }
   const token = generateToken({ id: faculty._id, role: faculty.role });
+  console.log('[Backend Auth] facultyLogin success', { email, role: faculty.role });
   res.json({
     token,
     user: {
@@ -70,17 +81,28 @@ const facultyLogin = async (req, res) => {
 // @desc Login for students
 // @route POST /api/auth/student/login
 const studentLogin = async (req, res) => {
+  console.log('[Backend Auth] studentLogin start', { email: req.body?.email, role: 'student' });
+
   const { error } = loginSchema.validate(req.body, { abortEarly: false });
   if (error) {
+    console.log('[Backend Auth] studentLogin validation failed', error.details);
     return res.status(400).json({ message: error.details.map((d) => d.message).join(', ') });
   }
 
   const { email, password } = req.body;
   const student = await Student.findOne({ email }).select('+password');
+  console.log('[Backend Auth] student lookup result', {
+    found: !!student,
+    email,
+    hasPassword: !!student?.password,
+  });
+
   if (!student || !(await student.comparePassword(password))) {
+    console.log('[Backend Auth] studentLogin invalid credentials', { email });
     return res.status(401).json({ message: 'Invalid email or password' });
   }
   const token = generateToken({ id: student._id, role: 'student' });
+  console.log('[Backend Auth] studentLogin success', { email, role: 'student' });
   res.json({
     token,
     user: { id: student._id, name: student.name, email: student.email, role: 'student', rollNo: student.rollNo },
