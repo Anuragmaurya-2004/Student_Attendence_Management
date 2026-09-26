@@ -1,7 +1,10 @@
 {
-  "$schema": "https://railway.com/railway.schema.json",
-  "build": {
-    "buildCommand": "cd backend && npm install"
+  "$schema": "https://schema.railpack.com",
+  "provider": "node",
+  "steps": {
+    "install": {
+      "commands": ["cd backend && npm install"]
+    }
   },
   "deploy": {
     "startCommand": "cd backend && npm start"
