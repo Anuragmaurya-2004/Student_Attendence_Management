@@ -127,7 +127,7 @@ export default function SessionDetail() {
             </p>
           </div>
           <div className="inline-flex items-center gap-2 self-start rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-medium text-brand-50 backdrop-blur-sm">
-            <Badge color={session.type === 'practical' ? 'blue' : 'gray'} className="!bg-white/10 !text-white !border-white/20">
+            <Badge color={session.type === 'practical' ? 'blue' : session.type === 'project' ? 'purple' : 'gray'} className="!bg-white/10 !text-white !border-white/20">
               {session.type}
             </Badge>
           </div>

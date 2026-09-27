@@ -178,6 +178,7 @@ export default function FacultySessions() {
             <Select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} error={errors.type}>
               <option value="theory">Theory</option>
               <option value="practical">Practical</option>
+              <option value="project">Project (Guide Review)</option>
             </Select>
             {errors.type && <p className="mt-1 text-xs text-red-500">{errors.type}</p>}
           </div>
@@ -205,7 +206,15 @@ export default function FacultySessions() {
             { key: 'time', header: 'Time', render: (r) => `${r.startTime} - ${r.endTime}` },
             { key: 'course', header: 'Course', render: (r) => r.course?.name },
             { key: 'classBatch', header: 'Class', render: (r) => r.classBatch?.name },
-            { key: 'type', header: 'Type', render: (r) => <Badge color={r.type === 'practical' ? 'blue' : 'gray'}>{r.type}</Badge> },
+            {
+              key: 'type',
+              header: 'Type',
+              render: (r) => (
+                <Badge color={r.type === 'practical' ? 'blue' : r.type === 'project' ? 'purple' : 'gray'}>
+                  {r.type}
+                </Badge>
+              ),
+            },
             { key: 'status', header: 'Status', render: (r) => <Badge color={r.status === 'held' ? 'green' : 'yellow'}>{r.status}</Badge> },
             {
               key: 'actions',

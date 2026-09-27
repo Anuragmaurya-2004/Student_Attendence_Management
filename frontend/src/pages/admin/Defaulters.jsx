@@ -69,7 +69,7 @@ export default function Defaulters() {
               { key: 'rollNo', header: 'Roll No' },
               { key: 'studentName', header: 'Student' },
               { key: 'courseName', header: 'Course' },
-              { key: 'type', header: 'Type', render: (r) => <Badge color={r.type === 'practical' ? 'blue' : 'gray'}>{r.type}</Badge> },
+              { key: 'type', header: 'Type', render: (r) => <Badge color={r.type === 'practical' ? 'blue' : r.type === 'project' ? 'purple' : 'gray'}>{r.type}</Badge> },
               { key: 'attendedHours', header: 'Attended Hrs' },
               { key: 'totalHeldHours', header: 'Total Held Hrs' },
               {
