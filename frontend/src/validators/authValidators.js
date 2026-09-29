@@ -109,8 +109,8 @@ export const sessionSchema = Joi.object({
   date: Joi.string().required().messages({ 'string.empty': 'Session date is required.' }),
   startTime: Joi.string().required().messages({ 'string.empty': 'Start time is required.' }),
   endTime: Joi.string().required().messages({ 'string.empty': 'End time is required.' }),
-  type: Joi.string().valid('theory', 'practical').required().messages({
-    'any.only': 'Session type must be theory or practical.',
+  type: Joi.string().valid('theory', 'practical', 'project').required().messages({
+    'any.only': 'Session type must be theory, practical, or project.',
     'any.required': 'Session type is required.',
   }),
   durationHours: Joi.number().min(0.5).required().messages({
@@ -160,8 +160,8 @@ export const courseSchema = Joi.object({
     'string.empty': 'Course code is required.',
     'string.min': 'Course code must be at least 2 characters.',
   }),
-  type: Joi.string().valid('theory', 'practical').required().messages({
-    'any.only': 'Course type must be theory or practical.',
+  type: Joi.string().valid('theory', 'practical', 'project').required().messages({
+    'any.only': 'Course type must be theory, practical, or project.',
     'any.required': 'Course type is required.',
   }),
   department: Joi.string().required().messages({ 'string.empty': 'Department is required.' }),

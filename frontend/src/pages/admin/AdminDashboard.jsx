@@ -227,7 +227,7 @@ export default function AdminDashboard() {
                     <td className="py-3 pr-4 text-slate-700">{d.studentName}</td>
                     <td className="py-3 pr-4 text-slate-700">{d.courseName}</td>
                     <td className="py-3 pr-4">
-                      <Badge color={d.type === 'practical' ? 'blue' : 'gray'}>{d.type}</Badge>
+                      <Badge color={d.type === 'practical' ? 'blue' : d.type === 'project' ? 'purple' : 'gray'}>{d.type}</Badge>
                     </td>
                     <td className="py-3 pr-4">
                       <span className="mr-2 inline-flex rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-700">

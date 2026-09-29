@@ -22,9 +22,9 @@ const courseImportRowSchema = Joi.object({
     'number.min': 'Semester must be at least 1.',
     'any.required': 'Semester is required.',
   }),
-  type: Joi.string().trim().valid('theory', 'practical').required().messages({
+  type: Joi.string().trim().valid('theory', 'practical', 'project').required().messages({
     'any.required': 'Course type is required.',
-    'any.only': 'Course type must be either theory or practical.',
+    'any.only': 'Course type must be theory, practical, or project.',
   }),
   weeklyHours: Joi.number().min(1).required().messages({
     'number.min': 'Weekly hours must be at least 1.',
@@ -224,7 +224,7 @@ async function downloadTemplate(req, res) {
 
   sheet.addRow({});
   sheet.getCell(`A${sheet.rowCount + 1}`).value =
-    'Notes: Type should be theory or practical. Department must match an existing department code and AcademicYear must match an existing academic year label.';
+    'Notes: Type should be theory, practical, or project. Department must match an existing department code and AcademicYear must match an existing academic year label.';
   sheet.mergeCells(`A${sheet.rowCount}:G${sheet.rowCount}`);
   sheet.getCell(`A${sheet.rowCount}`).font = { italic: true, size: 9, color: { argb: 'FF888888' } };
   sheet.getCell(`A${sheet.rowCount}`).alignment = { wrapText: true };

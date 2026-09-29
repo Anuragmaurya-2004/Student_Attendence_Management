@@ -10,7 +10,7 @@ const sessionSchema = new mongoose.Schema(
     date: { type: Date, required: true },
     startTime: { type: String, required: true }, // "10:00"
     endTime: { type: String, required: true }, // "11:00"
-    type: { type: String, enum: ['theory', 'practical'], required: true },
+    type: { type: String, enum: ['theory', 'practical', 'project'], required: true },
     durationHours: { type: Number, required: true, default: 1 },
     status: { type: String, enum: ['scheduled', 'held', 'cancelled'], default: 'scheduled' },
     // QR check-in fields

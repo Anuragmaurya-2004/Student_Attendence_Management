@@ -318,8 +318,20 @@ async function seed() {
     defaulterThresholdPercent: 75,
   });
 
-  // Assign courses to faculty
-  facultyPriya.coursesAssigned = [cseCloudTh._id, cseCloudPr._id];
+  // Project Category Course (Managed by Project Guide)
+  const cseProject = await Course.create({
+    name: 'Mini Project 2A (Capstone Stage 1)',
+    code: 'CS503P',
+    department: deptCSE._id,
+    academicYear: academicYear._id,
+    semester: 5,
+    type: 'project',
+    weeklyHours: 2,
+    defaulterThresholdPercent: 75,
+  });
+
+  // Assign courses to faculty (Prof. Priya is also Project Guide for CS503P)
+  facultyPriya.coursesAssigned = [cseCloudTh._id, cseCloudPr._id, cseProject._id];
   await facultyPriya.save();
 
   facultyAmit.coursesAssigned = [cseDBMSTh._id, cseDBMSPr._id];
@@ -457,6 +469,23 @@ async function seed() {
         status: 'held',
       });
       heldSessions.push(sPr);
+    }
+
+    // Project Review Session (Weekly Project Attendance taken by Guide, 2 hrs)
+    if (i % 4 === 0) {
+      const sProj = await Session.create({
+        course: cseProject._id,
+        faculty: facultyPriya._id,
+        classBatch: batchTECSE._id,
+        academicYear: academicYear._id,
+        date: sDate,
+        startTime: '13:00',
+        endTime: '15:00',
+        durationHours: 2,
+        type: 'project',
+        status: 'held',
+      });
+      heldSessions.push(sProj);
     }
   }
 

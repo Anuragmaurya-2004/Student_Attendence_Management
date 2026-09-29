@@ -121,7 +121,7 @@ export default function StudentAttendance() {
                 >
                   <div className="mb-3 flex items-start justify-between gap-2">
                     <span className="text-sm font-semibold leading-tight text-slate-800">{c.courseName}</span>
-                    <Badge color={c.type === 'practical' ? 'blue' : 'gray'}>{c.type}</Badge>
+                    <Badge color={c.type === 'practical' ? 'blue' : c.type === 'project' ? 'purple' : 'gray'}>{c.type}</Badge>
                   </div>
                   <div className="mb-2 flex items-baseline gap-2">
                     <span className={`text-3xl font-extrabold ${isLow ? 'text-red-600' : 'text-brand-700'}`}>
@@ -198,7 +198,7 @@ export default function StudentAttendance() {
                     </td>
                     <td className="py-2.5 pr-4 font-medium text-slate-800">{r.session?.course?.name}</td>
                     <td className="py-2.5 pr-4">
-                      <Badge color={r.session?.type === 'practical' ? 'blue' : 'gray'}>
+                      <Badge color={r.session?.type === 'practical' ? 'blue' : r.session?.type === 'project' ? 'purple' : 'gray'}>
                         {r.session?.type}
                       </Badge>
                     </td>

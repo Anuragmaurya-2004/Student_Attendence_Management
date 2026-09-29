@@ -437,6 +437,7 @@ export default function AcademicSetup() {
               >
                 <option value="theory">Theory</option>
                 <option value="practical">Practical</option>
+                <option value="project">Project (Guide Review)</option>
               </Select>
               {courseErrors.type && <p className="mt-1 text-xs text-red-500">{courseErrors.type}</p>}
             </div>
@@ -521,7 +522,15 @@ export default function AcademicSetup() {
             columns={[
               { key: 'name', header: 'Name' },
               { key: 'code', header: 'Code' },
-              { key: 'type', header: 'Type', render: (r) => <Badge color={r.type === 'practical' ? 'blue' : 'gray'}>{r.type}</Badge> },
+              {
+                key: 'type',
+                header: 'Type',
+                render: (r) => (
+                  <Badge color={r.type === 'practical' ? 'blue' : r.type === 'project' ? 'purple' : 'gray'}>
+                    {r.type}
+                  </Badge>
+                ),
+              },
               { key: 'weeklyHours', header: 'Hrs/wk' },
             ]}
             data={courses}
