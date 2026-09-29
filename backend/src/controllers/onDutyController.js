@@ -59,6 +59,31 @@ const createOnDuty = async (req, res) => {
     .populate('classBatch', 'name')
     .populate('approvedBy', 'name');
 
+  // Notify students and administrators
+  try {
+    const Notification = require('../models/Notification');
+    await Notification.create({
+      title: 'On-Duty Application Approved',
+      message: `On-Duty granted for "${eventTitle}" (${studentIds.length} student(s) credited across ${sessionsCount} sessions).`,
+      type: 'info',
+      link: '/admin/onduty',
+      recipientRole: 'admin',
+    });
+
+    const studentNotifications = studentIds.map((sId) => ({
+      title: 'On-Duty Exemption Credited',
+      message: `Your On-Duty exemption for "${eventTitle}" has been approved and credited for ${sessionsCount} sessions.`,
+      type: 'success',
+      link: '/student',
+      recipient: sId,
+      recipientModel: 'Student',
+      recipientRole: 'student',
+    }));
+    await Notification.insertMany(studentNotifications);
+  } catch (notifErr) {
+    console.error('Failed to dispatch On-Duty notifications:', notifErr);
+  }
+
   res.status(201).json({
     message: `On-Duty granted successfully. ${attendanceMarked} attendance records updated across ${sessionsCount} sessions.`,
     onDuty: populated,
@@ -104,8 +129,37 @@ const deleteOnDuty = async (req, res) => {
   const onDuty = await OnDuty.findById(req.params.id);
   if (!onDuty) return res.status(404).json({ message: 'On-Duty record not found' });
 
+  const studentIds = onDuty.students || [];
+  const eventTitle = onDuty.eventTitle;
+
   await removeOnDutyAttendance(onDuty._id);
   await OnDuty.findByIdAndDelete(req.params.id);
+
+  try {
+    const Notification = require('../models/Notification');
+    await Notification.create({
+      title: 'On-Duty Grant Revoked',
+      message: `On-Duty for "${eventTitle}" was revoked. Linked attendance has been reverted.`,
+      type: 'warning',
+      link: '/admin/onduty',
+      recipientRole: 'admin',
+    });
+
+    if (studentIds.length > 0) {
+      const studentNotifications = studentIds.map((sId) => ({
+        title: 'On-Duty Exemption Revoked',
+        message: `Your On-Duty exemption for "${eventTitle}" has been revoked by administration.`,
+        type: 'warning',
+        link: '/student',
+        recipient: sId,
+        recipientModel: 'Student',
+        recipientRole: 'student',
+      }));
+      await Notification.insertMany(studentNotifications);
+    }
+  } catch (notifErr) {
+    console.error('Failed to dispatch On-Duty revocation notifications:', notifErr);
+  }
 
   res.json({ message: 'On-Duty grant revoked and linked attendance reverted.' });
 };

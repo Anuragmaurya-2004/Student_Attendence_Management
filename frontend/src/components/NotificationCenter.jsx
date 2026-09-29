@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import api from '../api/client';
 import {
   Bell,
   CheckCircle2,
@@ -10,97 +11,8 @@ import {
   Check,
   Trash2,
   Sparkles,
+  RefreshCw,
 } from 'lucide-react';
-
-const INITIAL_NOTIFICATIONS = {
-  admin: [
-    {
-      id: 'adm-1',
-      title: 'Defaulter Alert',
-      message: '4 students are currently below 60% critical attendance threshold.',
-      type: 'warning',
-      timestamp: '15m ago',
-      read: false,
-      link: '/admin/defaulters',
-    },
-    {
-      id: 'adm-2',
-      title: 'On-Duty Application Submitted',
-      message: 'New multi-day On-Duty permission requested for CSE Smart India Hackathon.',
-      type: 'info',
-      timestamp: '1h ago',
-      read: false,
-      link: '/admin/onduty',
-    },
-    {
-      id: 'adm-3',
-      title: 'System Telemetry Synced',
-      message: 'Daily attendance logs verified across 3 departments.',
-      type: 'success',
-      timestamp: '3h ago',
-      read: true,
-      link: '/admin',
-    },
-  ],
-  faculty: [
-    {
-      id: 'fac-1',
-      title: 'Upcoming Lecture Session',
-      message: 'Operating Systems (Lab Batch B) starts at 10:00 AM.',
-      type: 'reminder',
-      timestamp: '25m ago',
-      read: false,
-      link: '/faculty',
-    },
-    {
-      id: 'fac-2',
-      title: 'On-Duty Exemption Credited',
-      message: 'Aarav Sharma was granted OD exemption for Inter-College Sports.',
-      type: 'info',
-      timestamp: '2h ago',
-      read: false,
-      link: '/faculty/onduty',
-    },
-    {
-      id: 'fac-3',
-      title: 'Class Defaulter Roster Updated',
-      message: 'Attendance percentages recalculated for current semester week.',
-      type: 'warning',
-      timestamp: '5h ago',
-      read: true,
-      link: '/faculty/defaulters',
-    },
-  ],
-  student: [
-    {
-      id: 'stu-1',
-      title: 'Attendance Recorded',
-      message: 'Verified check-in recorded for Data Structures Lecture.',
-      type: 'success',
-      timestamp: '10m ago',
-      read: false,
-      link: '/student',
-    },
-    {
-      id: 'stu-2',
-      title: 'On-Duty Grant Approved',
-      message: 'Your official attendance exemption for Hackathon 2026 has been credited.',
-      type: 'info',
-      timestamp: '1h ago',
-      read: false,
-      link: '/student',
-    },
-    {
-      id: 'stu-3',
-      title: 'Safe-Skip Buffer Updated',
-      message: 'You have 3 safe skips remaining while keeping above 75%.',
-      type: 'reminder',
-      timestamp: '1d ago',
-      read: true,
-      link: '/student',
-    },
-  ],
-};
 
 function NotificationIcon({ type }) {
   switch (type) {
@@ -117,60 +29,64 @@ function NotificationIcon({ type }) {
   }
 }
 
+const formatTimeAgo = (dateStr) => {
+  if (!dateStr) return 'Just now';
+  try {
+    const diffMs = Date.now() - new Date(dateStr).getTime();
+    if (isNaN(diffMs)) return 'Just now';
+    const diffMins = Math.floor(diffMs / 60000);
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `${diffHours}h ago`;
+    const diffDays = Math.floor(diffHours / 24);
+    return `${diffDays}d ago`;
+  } catch {
+    return 'Just now';
+  }
+};
+
 export default function NotificationCenter() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [tab, setTab] = useState('all'); // 'all' or 'unread'
-
-  const [notifications, setNotifications] = useState(() => {
-    try {
-      const storageKey = `notifications_${user?.id || user?.role || 'guest'}`;
-      const saved = localStorage.getItem(storageKey);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.map((item) => ({
-            id: item.id || String(Math.random()),
-            title: item.title || 'Notification',
-            message: item.message || '',
-            type: item.type || 'info',
-            timestamp: item.timestamp || 'Just now',
-            read: Boolean(item.read),
-            link: item.link || '',
-          }));
-        }
-      }
-    } catch (e) {
-      console.warn('Could not restore notifications from storage', e);
-    }
-    return INITIAL_NOTIFICATIONS[user?.role] || [];
-  });
-
+  const [notifications, setNotifications] = useState([]);
   const popoverRef = useRef(null);
 
-  // Sync to localStorage safely (only string primitives)
-  useEffect(() => {
-    if (user?.id || user?.role) {
-      const storageKey = `notifications_${user?.id || user?.role || 'guest'}`;
-      try {
-        const safeData = notifications.map((n) => ({
-          id: n.id,
-          title: n.title,
-          message: n.message,
-          type: n.type,
-          timestamp: n.timestamp,
-          read: n.read,
-          link: n.link,
-        }));
-        localStorage.setItem(storageKey, JSON.stringify(safeData));
-      } catch (e) {
-        console.warn('Could not save notifications to storage', e);
+  const fetchNotifications = useCallback(async () => {
+    if (!user) return;
+    try {
+      const res = await api.get('/notifications');
+      if (Array.isArray(res.data)) {
+        setNotifications(res.data);
       }
+    } catch (err) {
+      console.error('Failed to load notifications from server', err);
     }
-  }, [notifications, user?.id, user?.role]);
+  }, [user]);
 
-  // Click outside listener
+  // Initial fetch and periodic background sync (every 45s)
+  useEffect(() => {
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 45000);
+    return () => clearInterval(interval);
+  }, [fetchNotifications]);
+
+  // Refetch whenever the notification popover is opened or global action triggers
+  useEffect(() => {
+    if (isOpen) {
+      fetchNotifications();
+    }
+  }, [isOpen, fetchNotifications]);
+
+  useEffect(() => {
+    const handleRefresh = () => fetchNotifications();
+    window.addEventListener('refresh-notifications', handleRefresh);
+    return () => window.removeEventListener('refresh-notifications', handleRefresh);
+  }, [fetchNotifications]);
+
+  // Click outside listener to close dropdown
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (popoverRef.current && !popoverRef.current.contains(e.target)) {
@@ -185,27 +101,43 @@ export default function NotificationCenter() {
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
-  const markAllAsRead = () => {
+  const markAllAsRead = async () => {
+    // Optimistic UI update
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    try {
+      await api.put('/notifications/mark-all-read');
+    } catch (err) {
+      console.error('Failed to mark all notifications as read', err);
+      fetchNotifications();
+    }
   };
 
-  const markAsRead = (id) => {
+  const markAsRead = async (id) => {
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, read: true } : n))
     );
+    try {
+      await api.put(`/notifications/${id}/read`);
+    } catch (err) {
+      console.error('Failed to mark notification as read', err);
+    }
   };
 
-  const clearAll = () => {
-    setNotifications([]);
-  };
-
-  const deleteNotification = (id, e) => {
+  const deleteNotification = async (id, e) => {
     e.stopPropagation();
     setNotifications((prev) => prev.filter((n) => n.id !== id));
+    try {
+      await api.delete(`/notifications/${id}`);
+    } catch (err) {
+      console.error('Failed to dismiss notification', err);
+      fetchNotifications();
+    }
   };
 
-  const handleNotificationClick = (item) => {
-    markAsRead(item.id);
+  const handleNotificationClick = async (item) => {
+    if (!item.read) {
+      await markAsRead(item.id);
+    }
     setIsOpen(false);
     if (item.link) {
       navigate(item.link);
@@ -260,16 +192,14 @@ export default function NotificationCenter() {
                   <Check className="h-3.5 w-3.5" />
                 </button>
               )}
-              {notifications.length > 0 && (
-                <button
-                  type="button"
-                  onClick={clearAll}
-                  className="rounded-lg p-1 text-xs text-slate-500 hover:bg-slate-100 hover:text-rose-600 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-rose-400"
-                  title="Clear all"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={fetchNotifications}
+                className="rounded-lg p-1 text-xs text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
+                title="Refresh notifications"
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+              </button>
             </div>
           </div>
 
@@ -303,7 +233,7 @@ export default function NotificationCenter() {
           <div className="mt-2 max-h-80 overflow-y-auto space-y-1.5 p-1 scrollbar-thin">
             {filteredList.length === 0 ? (
               <div className="py-8 text-center text-xs text-slate-400 dark:text-slate-500">
-                {tab === 'unread' ? 'All caught up! No unread notifications.' : 'No notifications found.'}
+                {tab === 'unread' ? "All caught up! No unread notifications." : 'No notifications found.'}
               </div>
             ) : (
               filteredList.map((item) => (
@@ -334,7 +264,7 @@ export default function NotificationCenter() {
                         {item.title}
                       </span>
                       <span className="text-[10px] text-slate-400 dark:text-slate-500 shrink-0">
-                        {item.timestamp}
+                        {formatTimeAgo(item.createdAt)}
                       </span>
                     </div>
                     <p className="mt-0.5 line-clamp-2 text-[11px] leading-relaxed text-slate-600 dark:text-slate-300">

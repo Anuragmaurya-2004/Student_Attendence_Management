@@ -97,6 +97,7 @@ export default function ScanQR() {
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       });
       toast.success('Attendance marked successfully!');
+      window.dispatchEvent(new Event('refresh-notifications'));
     } catch (err) {
       let message = err.response?.data?.message || 'Invalid or expired QR code';
       if (!err.response && err.code === 1) {

@@ -128,6 +128,7 @@ export default function AcademicSetup() {
     try {
       await fn();
       toast.success('Record saved successfully');
+      window.dispatchEvent(new Event('refresh-notifications'));
       resetFn();
       loadAll();
     } catch (e) {

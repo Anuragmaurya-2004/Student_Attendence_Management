@@ -6,6 +6,7 @@ const Department = require('../models/Department');
 const AcademicYear = require('../models/AcademicYear');
 const Course = require('../models/Course');
 const ClassBatch = require('../models/ClassBatch');
+const Notification = require('../models/Notification');
 const { importCourses, downloadTemplate } = require('../controllers/courseImportController');
 
 const upload = multer({
@@ -29,6 +30,18 @@ router.get('/departments', async (req, res) => {
 });
 router.post('/departments', authorize('admin'), async (req, res) => {
   const dept = await Department.create(req.body);
+  try {
+    await Notification.create({
+      title: 'Department Created',
+      message: `Department "${dept.name}" (${dept.code}) was created successfully.`,
+      type: 'success',
+      link: '/admin/setup',
+      recipient: req.user.id,
+      recipientRole: 'admin',
+    });
+  } catch (notifErr) {
+    console.error('Failed to create department notification:', notifErr);
+  }
   res.status(201).json(dept);
 });
 router.put('/departments/:id', authorize('admin'), async (req, res) => {
@@ -78,6 +91,18 @@ router.post('/courses', authorize('admin'), async (req, res) => {
   const data = { ...req.body };
   if (deptScope) data.department = deptScope;
   const course = await Course.create(data);
+  try {
+    await Notification.create({
+      title: 'New Course Added',
+      message: `Course "${course.name}" (${course.code}) was added to Semester ${course.semester}.`,
+      type: 'success',
+      link: '/admin/setup',
+      recipient: req.user.id,
+      recipientRole: 'admin',
+    });
+  } catch (notifErr) {
+    console.error('Failed to create course notification:', notifErr);
+  }
   res.status(201).json(course);
 });
 router.post('/courses/import', authorize('admin'), upload.single('file'), importCourses);
@@ -129,6 +154,31 @@ router.post('/class-batches', authorize('admin'), async (req, res) => {
     await Faculty.findByIdAndUpdate(batch.classTeacher, {
       $addToSet: { classTeacherOf: batch._id, classBatchesAssigned: batch._id },
     });
+    try {
+      await Notification.create({
+        title: 'Class Teacher Appointment',
+        message: `You have been appointed as the Class Teacher for cohort ${batch.name}. You now have master all-subject attendance view for this cohort.`,
+        type: 'info',
+        link: '/faculty/my-class',
+        recipient: batch.classTeacher,
+        recipientModel: 'Faculty',
+        recipientRole: 'faculty',
+      });
+    } catch (notifErr) {
+      console.error('Failed to notify appointed class teacher:', notifErr);
+    }
+  }
+  try {
+    await Notification.create({
+      title: 'Class Batch Created',
+      message: `Class batch "${batch.name}" (Semester ${batch.semester || ''}) was added to the academic structure.`,
+      type: 'success',
+      link: '/admin/setup',
+      recipient: req.user.id,
+      recipientRole: 'admin',
+    });
+  } catch (notifErr) {
+    console.error('Failed to notify batch creator:', notifErr);
   }
   const populated = await ClassBatch.findById(batch._id)
     .populate('department academicYear')
@@ -150,13 +200,28 @@ router.put('/class-batches/:id', authorize('admin'), async (req, res) => {
     .populate('department academicYear')
     .populate('classTeacher', 'name email designation');
 
-  if (previousTeacher && String(previousTeacher) !== String(batch.classTeacher)) {
+  if (previousTeacher && String(previousTeacher) !== String(batch.classTeacher?._id || batch.classTeacher)) {
     await Faculty.findByIdAndUpdate(previousTeacher, { $pull: { classTeacherOf: batch._id } });
   }
   if (batch.classTeacher) {
     await Faculty.findByIdAndUpdate(batch.classTeacher, {
       $addToSet: { classTeacherOf: batch._id, classBatchesAssigned: batch._id },
     });
+    if (String(previousTeacher) !== String(batch.classTeacher?._id || batch.classTeacher)) {
+      try {
+        await Notification.create({
+          title: 'Class Teacher Appointment',
+          message: `You have been appointed as the Class Teacher for cohort ${batch.name}. You now have master all-subject attendance view for this cohort.`,
+          type: 'info',
+          link: '/faculty/my-class',
+          recipient: batch.classTeacher._id || batch.classTeacher,
+          recipientModel: 'Faculty',
+          recipientRole: 'faculty',
+        });
+      } catch (notifErr) {
+        console.error('Failed to notify appointed class teacher on update:', notifErr);
+      }
+    }
   }
   res.json(batch);
 });

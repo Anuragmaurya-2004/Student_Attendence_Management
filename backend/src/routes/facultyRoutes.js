@@ -116,6 +116,36 @@ router.post('/', authorize('admin'), (req, res, next) => validateRequest(createF
         { _id: { $in: faculty.classTeacherOf } },
         { classTeacher: faculty._id }
       );
+      try {
+        const appointedBatches = await ClassBatch.find({ _id: { $in: faculty.classTeacherOf } });
+        const batchNames = appointedBatches.map((b) => b.name).join(', ');
+        const Notification = require('../models/Notification');
+        await Notification.create({
+          title: 'Class Teacher Appointment',
+          message: `You have been appointed as the Class Teacher for cohort ${batchNames}. You now have master all-subject attendance view for this class.`,
+          type: 'info',
+          link: '/faculty/my-class',
+          recipient: faculty._id,
+          recipientModel: 'Faculty',
+          recipientRole: 'faculty',
+        });
+      } catch (notifErr) {
+        console.error('Failed to notify appointed class teacher on create:', notifErr);
+      }
+    }
+
+    try {
+      const Notification = require('../models/Notification');
+      await Notification.create({
+        title: 'Faculty Member Registered',
+        message: `Faculty member "${faculty.name}" (${faculty.email}) was registered successfully.`,
+        type: 'success',
+        link: '/admin/faculty',
+        recipient: req.user.id,
+        recipientRole: 'admin',
+      });
+    } catch (notifErr) {
+      console.error('Failed to notify HOD on faculty registration:', notifErr);
     }
 
     // Keep account creation independent from SMTP availability: the new faculty can still
@@ -179,6 +209,42 @@ router.put('/:id', authorize('admin'), (req, res, next) => validateRequest(updat
           { classTeacher: existing._id }
         );
       }
+
+      // If assigned as a new class teacher, notify the faculty immediately!
+      const newlyAppointed = newBatches.filter((b) => !prevBatches.includes(b));
+      if (newlyAppointed.length > 0) {
+        try {
+          const appointedBatches = await ClassBatch.find({ _id: { $in: newlyAppointed } });
+          const batchNames = appointedBatches.map((b) => b.name).join(', ');
+          const Notification = require('../models/Notification');
+          await Notification.create({
+            title: 'Class Teacher Appointment',
+            message: `You have been appointed as the Class Teacher for cohort ${batchNames}. You now have master all-subject attendance access for this class.`,
+            type: 'info',
+            link: '/faculty/my-class',
+            recipient: existing._id,
+            recipientModel: 'Faculty',
+            recipientRole: 'faculty',
+          });
+        } catch (notifErr) {
+          console.error('Failed to notify appointed class teacher on update:', notifErr);
+        }
+      }
+    }
+
+    // Confirmation notification to HOD
+    try {
+      const Notification = require('../models/Notification');
+      await Notification.create({
+        title: 'Faculty Assignments Saved',
+        message: `Course, batch, and class teacher allocations for ${existing.name} were successfully saved.`,
+        type: 'success',
+        link: '/admin/faculty',
+        recipient: req.user.id,
+        recipientRole: 'admin',
+      });
+    } catch (notifErr) {
+      console.error('Failed to send HOD confirmation notification:', notifErr);
     }
 
     const faculty = await Faculty.findByIdAndUpdate(req.params.id, data, { new: true })

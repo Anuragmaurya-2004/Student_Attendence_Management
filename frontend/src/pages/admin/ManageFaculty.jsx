@@ -604,6 +604,7 @@ export default function ManageFaculty() {
     try {
       await api.put(`/faculty/${facultyId}`, assignments[facultyId]);
       toast.success('Faculty course and batch assignments saved');
+      window.dispatchEvent(new Event('refresh-notifications'));
       setSavedAssignments((prev) => ({
         ...prev,
         [facultyId]: JSON.parse(JSON.stringify(assignments[facultyId])),
@@ -635,6 +636,7 @@ export default function ManageFaculty() {
     try {
       const { data } = await api.post('/faculty', form);
       toast.success(data.message || 'Faculty member created');
+      window.dispatchEvent(new Event('refresh-notifications'));
       setForm({ name: '', email: '', password: '', gender: 'Male', department: '', role: 'faculty' });
       setErrors({ name: '', email: '', password: '', gender: '', department: '' });
       load();

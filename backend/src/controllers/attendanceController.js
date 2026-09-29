@@ -2,6 +2,7 @@ const Attendance = require('../models/Attendance');
 const Session = require('../models/Session');
 const Student = require('../models/Student');
 const { verifyStudentLocation } = require('../services/geofenceService');
+const { createNotification } = require('../utils/notificationService');
 
 // @desc Student scans QR to mark their own attendance
 // @route POST /api/attendance/check-in
@@ -40,6 +41,22 @@ const checkIn = async (req, res) => {
       status: 'present',
       method: 'qr',
     });
+
+    try {
+      const populated = await Session.findById(sessionId).populate('course');
+      await createNotification({
+        title: 'Attendance Verified',
+        message: `You were marked present for ${populated?.course?.code || 'lecture'} via QR check-in.`,
+        type: 'success',
+        link: '/student',
+        recipient: req.user.id,
+        recipientModel: 'Student',
+        recipientRole: 'student',
+      });
+    } catch (notifErr) {
+      console.error('Check-in notification error:', notifErr);
+    }
+
     res.status(201).json(attendance);
   } catch (err) {
     if (err.code === 11000) {
@@ -65,6 +82,22 @@ const markManual = async (req, res) => {
     { status: status || 'present', method: 'manual', markedBy: req.user.id, markedAt: new Date() },
     { new: true, upsert: true, setDefaultsOnInsert: true }
   );
+
+  try {
+    const populated = await Session.findById(sessionId).populate('course');
+    await createNotification({
+      title: 'Attendance Status Updated',
+      message: `Your attendance in ${populated?.course?.code || 'lecture'} was recorded as "${status || 'present'}" by instructor.`,
+      type: status === 'present' ? 'success' : 'warning',
+      link: '/student',
+      recipient: studentId,
+      recipientModel: 'Student',
+      recipientRole: 'student',
+    });
+  } catch (notifErr) {
+    console.error('Manual attendance notification error:', notifErr);
+  }
+
   res.json(attendance);
 };
 
@@ -94,6 +127,21 @@ const markBulk = async (req, res) => {
     },
   }));
   const result = await Attendance.bulkWrite(ops);
+
+  try {
+    const populated = await Session.findById(sessionId).populate('course classBatch');
+    await createNotification({
+      title: 'Session Attendance Saved',
+      message: `Master attendance marked for ${records.length} students in ${populated?.course?.code || 'session'} (${populated?.classBatch?.name || ''}).`,
+      type: 'success',
+      link: '/faculty',
+      recipient: req.user.id,
+      recipientRole: 'faculty',
+    });
+  } catch (notifErr) {
+    console.error('Bulk attendance notification error:', notifErr);
+  }
+
   res.json({ message: 'Bulk attendance saved', result });
 };
 

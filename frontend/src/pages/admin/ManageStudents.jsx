@@ -107,6 +107,7 @@ export default function ManageStudents() {
     try {
       await api.post('/students', form);
       toast.success('Student enrolled successfully');
+      window.dispatchEvent(new Event('refresh-notifications'));
       setForm({
         name: '',
         rollNo: '',
@@ -168,6 +169,7 @@ export default function ManageStudents() {
       setImportResult(res.data);
       if (res.data.created > 0) {
         toast.success(`Imported ${res.data.created} student(s)${res.data.failed ? `, ${res.data.failed} failed` : ''}`);
+        window.dispatchEvent(new Event('refresh-notifications'));
       } else {
         toast.error('No students were imported - check the results below');
       }

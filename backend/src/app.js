@@ -14,6 +14,7 @@ const reportRoutes = require('./routes/reportRoutes');
 const rolloverRoutes = require('./routes/rolloverRoutes');
 const exportRoutes = require('./routes/exportRoutes');
 const onDutyRoutes = require('./routes/onDutyRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
 const { notFound, errorHandler } = require('./middleware/errorHandler');
 
 const app = express();
@@ -39,6 +40,7 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/rollover', rolloverRoutes);
 app.use('/api/export', exportRoutes);
 app.use('/api/onduty', onDutyRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

@@ -7,6 +7,7 @@ const { protect, authorize } = require('../middleware/auth');
 const Student = require('../models/Student');
 const { importStudents, downloadTemplate } = require('../controllers/studentImportController');
 const { sendStudentWelcomeEmail } = require('../services/mailService');
+const { createNotification } = require('../utils/notificationService');
 
 const objectIdSchema = Joi.string().pattern(/^[a-fA-F0-9]{24}$/);
 
@@ -210,6 +211,24 @@ router.post('/', authorize('admin'), (req, res, next) => validateRequest(createS
       console.error('[Student] Manual create welcome email failed:', mailError.message);
     }
 
+    await createNotification({
+      title: 'Student Enrolled',
+      message: `Student "${student.name}" (Roll No: ${student.rollNo}) was successfully registered.`,
+      type: 'success',
+      link: '/admin/students',
+      recipient: req.user.id,
+      recipientRole: 'admin',
+    });
+    await createNotification({
+      title: 'Welcome to Attendance Pro',
+      message: 'Your student portal is ready. Check your enrolled class sessions and attendance history.',
+      type: 'success',
+      link: '/student',
+      recipient: student._id,
+      recipientModel: 'Student',
+      recipientRole: 'student',
+    });
+
     res.status(201).json(student);
   } catch (err) {
     res.status(400).json({ message: err.message });
@@ -217,11 +236,6 @@ router.post('/', authorize('admin'), (req, res, next) => validateRequest(createS
 });
 
 // Bulk create students from raw JSON (admin only) - expects { students: [...] }
-// NOTE: uses individual .save() calls, not insertMany. insertMany() skips
-// Mongoose's pre('save') middleware, which is what hashes the password - an
-// insertMany-based bulk insert would have stored every bulk-created
-// student's password in PLAIN TEXT. .save() runs the hook correctly, and
-// also lets one bad row fail without aborting the whole batch.
 router.post('/bulk', authorize('admin'), (req, res, next) => validateRequest(bulkStudentsSchema, req, res, next), async (req, res) => {
   const { students } = req.body;
   const deptScope = getDepartmentScope(req);
@@ -262,12 +276,22 @@ router.post('/bulk', authorize('admin'), (req, res, next) => validateRequest(bul
       });
     }
   }
+
+  if (results.created > 0) {
+    await createNotification({
+      title: 'Bulk Students Ingested',
+      message: `Successfully onboarded ${results.created} student(s) into class cohorts.`,
+      type: 'success',
+      link: '/admin/students',
+      recipient: req.user.id,
+      recipientRole: 'admin',
+    });
+  }
+
   res.status(207).json(results);
 });
 
 // Bulk import students from an uploaded Excel/CSV file (admin only).
-// Lets a university onboard an entire class in one upload instead of
-// adding students one by one.
 router.post('/import', authorize('admin'), upload.single('file'), importStudents);
 router.get('/import/template', authorize('admin'), downloadTemplate);
 
@@ -284,6 +308,25 @@ router.put('/:id', authorize('admin'), (req, res, next) => validateRequest(updat
     if (deptScope) updateData.department = deptScope;
 
     const student = await Student.findByIdAndUpdate(req.params.id, updateData, { new: true });
+
+    await createNotification({
+      title: 'Student Profile Updated',
+      message: `Profile records for "${student.name}" (${student.rollNo}) were updated.`,
+      type: 'info',
+      link: '/admin/students',
+      recipient: req.user.id,
+      recipientRole: 'admin',
+    });
+    await createNotification({
+      title: 'Profile Updated',
+      message: 'Your academic profile details have been updated by administration.',
+      type: 'info',
+      link: '/student',
+      recipient: student._id,
+      recipientModel: 'Student',
+      recipientRole: 'student',
+    });
+
     res.json(student);
   } catch (err) {
     res.status(400).json({ message: err.message });
@@ -299,6 +342,16 @@ router.delete('/:id', authorize('admin'), async (req, res) => {
     return res.status(403).json({ message: 'Forbidden: You can only delete students in your department.' });
   }
   await Student.findByIdAndDelete(req.params.id);
+
+  await createNotification({
+    title: 'Student Record Removed',
+    message: `Student "${existing.name}" (${existing.rollNo}) was deleted from the roster.`,
+    type: 'info',
+    link: '/admin/students',
+    recipient: req.user.id,
+    recipientRole: 'admin',
+  });
+
   res.json({ message: 'Deleted' });
 });
 
