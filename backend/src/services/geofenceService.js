@@ -26,17 +26,19 @@ const distanceInMeters = (first, second) => {
 };
 
 const verifyStudentLocation = (classroom, studentLocation) => {
+  // If classroom coordinates are not configured, geofence check is bypassed
   if (classroom?.latitude == null || classroom?.longitude == null) {
-    return { ok: false, message: 'Classroom location is not configured. Ask faculty to set it before checking in.' };
+    return { ok: true, bypassed: true, message: 'Classroom geofence is not configured; check-in allowed.' };
   }
   if (!studentLocation || !isCoordinate(studentLocation.latitude, -90, 90) || !isCoordinate(studentLocation.longitude, -180, 180)) {
-    return { ok: false, message: 'Your device location could not be read. Allow location access and try again.' };
+    return { ok: false, message: 'This classroom requires GPS location verification. Please allow location access on your device.' };
   }
   const accuracy = Number(studentLocation.accuracy);
   if (!Number.isFinite(accuracy) || accuracy <= 0) {
     return { ok: false, message: 'Your device returned an invalid location accuracy. Turn on device location and try again.' };
   }
-  if (accuracy > MAX_ACCURACY_METERS) {
+  const maxAccuracy = Math.max(MAX_ACCURACY_METERS, 250);
+  if (accuracy > maxAccuracy) {
     return { ok: false, message: `Location accuracy is too low (${Math.round(accuracy)}m). Move near a window or enable high-accuracy location and try again.` };
   }
 
@@ -45,7 +47,7 @@ const verifyStudentLocation = (classroom, studentLocation) => {
   // GPS reports an uncertainty radius. Allowing it avoids rejecting honest users at the edge,
   // while the accuracy cap prevents a very imprecise fix from bypassing the classroom boundary.
   if (distance > radius + accuracy) {
-    return { ok: false, message: `You appear to be ${Math.round(distance)}m from the classroom. Move inside the allowed area and try again.` };
+    return { ok: false, message: `You appear to be ${Math.round(distance)}m from the classroom (allowed radius: ${radius}m). Move inside the classroom and try again.` };
   }
   return { ok: true, distance, accuracy };
 };

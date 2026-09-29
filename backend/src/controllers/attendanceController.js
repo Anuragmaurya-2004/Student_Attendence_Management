@@ -21,17 +21,23 @@ const checkIn = async (req, res) => {
   // A short-lived rotating token limits screenshot replay; the previous token is accepted only
   // during the configured grace period so a scan crossing a rotation is still usable.
   if (!isCurrentToken && !isPreviousToken) {
-    return res.status(400).json({ message: 'Invalid QR code' });
+    return res.status(400).json({ message: 'QR code has expired or is invalid. Please scan the latest code on screen.' });
   }
 
   // Ensure student belongs to this session's class batch
   const student = await Student.findById(req.user.id);
-  if (student.classBatch.toString() !== session.classBatch.toString()) {
-    return res.status(403).json({ message: 'You are not part of this class/batch' });
+  if (!student) {
+    return res.status(404).json({ message: 'Student record not found.' });
+  }
+  const studentBatchId = student.classBatch?._id?.toString() || student.classBatch?.toString();
+  const sessionBatchId = session.classBatch?._id?.toString() || session.classBatch?.toString();
+  if (!studentBatchId || studentBatchId !== sessionBatchId) {
+    return res.status(403).json({ message: 'You are not enrolled in this session’s class batch.' });
   }
 
-  // Geofencing applies only to student QR self check-in. Faculty/admin manual paths intentionally bypass it.
-  const locationCheck = verifyStudentLocation((await session.populate('classBatch')).classBatch.classroom, location);
+  // Geofencing applies only to student QR self check-in.
+  await session.populate('classBatch');
+  const locationCheck = verifyStudentLocation(session.classBatch?.classroom, location);
   if (!locationCheck.ok) return res.status(400).json({ message: locationCheck.message });
 
   try {
