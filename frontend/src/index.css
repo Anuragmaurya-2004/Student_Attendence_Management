@@ -4,199 +4,41 @@
 
 :root {
   color-scheme: light;
-  font-family: 'Inter', 'Segoe UI', sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   line-height: 1.5;
   font-weight: 400;
-  background: #f4f7fb;
-  color: #111827;
 }
 
 html {
   scroll-behavior: smooth;
 }
 
-body {
-  margin: 0;
-  min-width: 320px;
-  min-height: 100vh;
-  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  background:
-    radial-gradient(circle at top left, rgba(99, 102, 241, 0.10), transparent 28%),
-    radial-gradient(circle at top right, rgba(59, 130, 246, 0.08), transparent 24%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(239, 246, 255, 0.82) 22%, rgba(248, 250, 252, 1) 100%),
-    #f8fafc;
-  color: #0f172a;
-  transition: background-color 0.2s ease, color 0.2s ease;
-}
-
-html.dark body {
-  background:
-    radial-gradient(circle at top left, rgba(99, 102, 241, 0.18), transparent 26%),
-    radial-gradient(circle at top right, rgba(14, 165, 233, 0.12), transparent 22%),
-    linear-gradient(180deg, rgba(2, 6, 23, 0.96), rgba(15, 23, 42, 1) 22%),
-    #020817;
-  color: #e2e8f0;
-}
-
-html {
-  color-scheme: light;
-}
-
 html.dark {
   color-scheme: dark;
 }
 
-html:not(.dark) body,
-html:not(.dark) #root,
-html:not(.dark) .min-h-screen,
-html:not(.dark) .bg-white,
-html:not(.dark) .bg-slate-50,
-html:not(.dark) .bg-slate-100,
-html:not(.dark) .bg-slate-200,
-html:not(.dark) .bg-slate-300,
-html:not(.dark) .bg-slate-500,
-html:not(.dark) .bg-slate-600,
-html:not(.dark) .bg-slate-700,
-html:not(.dark) .bg-slate-800,
-html:not(.dark) .bg-slate-900,
-html:not(.dark) [class*="bg-white"],
-html:not(.dark) [class*="bg-slate-50"],
-html:not(.dark) [class*="bg-slate-100"],
-html:not(.dark) [class*="bg-slate-200"],
-html:not(.dark) [class*="bg-slate-300"],
-html:not(.dark) [class*="bg-slate-500"],
-html:not(.dark) [class*="bg-slate-600"],
-html:not(.dark) [class*="bg-slate-700"],
-html:not(.dark) [class*="bg-slate-800"],
-html:not(.dark) [class*="bg-slate-900"] {
-  background-color: #ffffff !important;
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background-color: #f8fafc;
+  background-image: 
+    radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.08) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, rgba(14, 165, 233, 0.07) 0px, transparent 50%);
+  background-attachment: fixed;
+  color: #0f172a;
+  transition: background-color 0.25s ease, color 0.25s ease;
+  -webkit-font-smoothing: antialiased;
 }
 
-html.dark body,
-html.dark #root,
-html.dark .min-h-screen,
-html.dark .bg-white,
-html.dark .bg-slate-50,
-html.dark .bg-slate-100,
-html.dark .bg-slate-200,
-html.dark .bg-slate-300,
-html.dark .bg-slate-500,
-html.dark .bg-slate-600,
-html.dark .bg-slate-700,
-html.dark .bg-slate-800,
-html.dark .bg-slate-900,
-html.dark [class*="bg-white"],
-html.dark [class*="bg-slate-50"],
-html.dark [class*="bg-slate-100"],
-html.dark [class*="bg-slate-200"],
-html.dark [class*="bg-slate-300"],
-html.dark [class*="bg-slate-500"],
-html.dark [class*="bg-slate-600"],
-html.dark [class*="bg-slate-700"],
-html.dark [class*="bg-slate-800"],
-html.dark [class*="bg-slate-900"] {
-  background-color: #0f172a !important;
-}
-
-html:not(.dark) .text-slate-900,
-html:not(.dark) .text-slate-800,
-html:not(.dark) .text-slate-700,
-html:not(.dark) .text-slate-600,
-html:not(.dark) .text-slate-500,
-html:not(.dark) [class*="text-slate-900"],
-html:not(.dark) [class*="text-slate-800"],
-html:not(.dark) [class*="text-slate-700"],
-html:not(.dark) [class*="text-slate-600"],
-html:not(.dark) [class*="text-slate-500"] {
-  color: #0f172a !important;
-}
-
-html:not(.dark) .text-slate-400,
-html:not(.dark) .text-slate-300,
-html:not(.dark) .text-slate-200,
-html:not(.dark) [class*="text-slate-400"],
-html:not(.dark) [class*="text-slate-300"],
-html:not(.dark) [class*="text-slate-200"] {
-  color: #475569 !important;
-}
-
-html:not(.dark) svg,
-html:not(.dark) svg path,
-html:not(.dark) svg circle,
-html:not(.dark) svg rect,
-html:not(.dark) svg polyline,
-html:not(.dark) svg line,
-html:not(.dark) svg polygon {
-  color: inherit;
-  stroke: currentColor;
-  fill: currentColor;
-}
-
-html.dark .text-slate-900,
-html.dark .text-slate-800,
-html.dark .text-slate-700,
-html.dark .text-slate-600,
-html.dark .text-slate-500,
-html.dark [class*="text-slate-900"],
-html.dark [class*="text-slate-800"],
-html.dark [class*="text-slate-700"],
-html.dark [class*="text-slate-600"],
-html.dark [class*="text-slate-500"] {
-  color: #e2e8f0 !important;
-}
-
-html:not(.dark) .border-slate-200,
-html:not(.dark) .border-slate-300,
-html:not(.dark) .border-slate-400,
-html:not(.dark) .border-slate-500,
-html:not(.dark) .border-slate-600,
-html:not(.dark) [class*="border-slate-200"],
-html:not(.dark) [class*="border-slate-300"],
-html:not(.dark) [class*="border-slate-400"],
-html:not(.dark) [class*="border-slate-500"],
-html:not(.dark) [class*="border-slate-600"] {
-  border-color: rgba(148, 163, 184, 0.38) !important;
-}
-
-html.dark .border-slate-200,
-html.dark .border-slate-300,
-html.dark .border-slate-400,
-html.dark .border-slate-500,
-html.dark .border-slate-600,
-html.dark [class*="border-slate-200"],
-html.dark [class*="border-slate-300"],
-html.dark [class*="border-slate-400"],
-html.dark [class*="border-slate-500"],
-html.dark [class*="border-slate-600"] {
-  border-color: rgba(148, 163, 184, 0.25) !important;
-}
-
-html.dark .border-slate-200,
-html.dark .border-slate-300,
-html.dark .border-slate-400,
-html.dark .border-slate-500,
-html.dark .border-slate-600 {
-  border-color: rgba(148, 163, 184, 0.25) !important;
-}
-
-html.dark .ring-slate-200,
-html.dark .ring-slate-300,
-html.dark .ring-slate-400,
-html.dark .ring-slate-500 {
-  --tw-ring-color: rgba(148, 163, 184, 0.35) !important;
-}
-
-html.dark .shadow-soft,
-html.dark .shadow-card {
-  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.55) !important;
-}
-
-html.dark .text-slate-400,
-html.dark .text-slate-500,
-html.dark .text-slate-600,
-html.dark .text-slate-700,
-html.dark .text-slate-800 {
-  color: #cbd5e1 !important;
+html.dark body {
+  background-color: #070913;
+  background-image: 
+    radial-gradient(at 0% 0%, rgba(79, 70, 229, 0.16) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, rgba(56, 189, 248, 0.09) 0px, transparent 50%),
+    radial-gradient(at 50% 100%, rgba(124, 58, 237, 0.08) 0px, transparent 50%);
+  background-attachment: fixed;
+  color: #f1f5f9;
 }
 
 * {
@@ -207,30 +49,61 @@ html.dark .text-slate-800 {
   min-height: 100vh;
 }
 
+/* Custom Scrollbars */
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(148, 163, 184, 0.12);
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(79, 70, 229, 0.32);
-  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.4);
+  border-radius: 9999px;
+}
+
+html.dark ::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.4);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(99, 102, 241, 0.6);
 }
 
 @layer components {
-  .glass-panel {
-    @apply bg-white/80 backdrop-blur-sm border border-slate-200/80 shadow-soft;
-  }
-
   .page-shell {
-    @apply w-full max-w-7xl mx-auto px-3 sm:px-4 lg:px-6;
+    @apply w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
   }
 
-  .section-title {
-    @apply text-xl sm:text-2xl font-bold text-slate-900 tracking-tight;
+  .glass-card {
+    @apply rounded-3xl border border-slate-200/90 bg-white/95 p-5 shadow-[0_10px_30px_rgba(15,23,42,0.04)] backdrop-blur-sm transition-all duration-200 dark:border-slate-800/90 dark:bg-slate-900/90 dark:shadow-[0_10px_30px_rgba(0,0,0,0.35)];
+  }
+
+  .interactive-card {
+    @apply glass-card hover:-translate-y-0.5 hover:shadow-[0_16px_36px_rgba(15,23,42,0.08)] dark:hover:border-slate-700 dark:hover:shadow-[0_16px_36px_rgba(0,0,0,0.5)];
+  }
+
+  .hero-banner {
+    @apply relative overflow-hidden rounded-3xl border border-indigo-200/70 bg-gradient-to-br from-indigo-600 via-brand-600 to-indigo-800 p-6 text-white shadow-soft dark:border-indigo-500/20 dark:from-indigo-950 dark:via-indigo-900 dark:to-slate-950 sm:p-8;
+  }
+
+  .animate-stagger-1 {
+    animation: fadeInUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) 0.04s both;
+  }
+  .animate-stagger-2 {
+    animation: fadeInUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) 0.08s both;
+  }
+  .animate-stagger-3 {
+    animation: fadeInUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) 0.12s both;
+  }
+  .animate-stagger-4 {
+    animation: fadeInUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) 0.16s both;
+  }
+
+  .tnum {
+    font-feature-settings: 'tnum';
+    font-variant-numeric: tabular-nums;
   }
 }

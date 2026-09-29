@@ -1,8 +1,18 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import api from '../../api/client';
-import { Card, Button, Table, Select, Badge } from '../../components/ui';
+import { Card, Button, Table, Select, Badge, Input } from '../../components/ui';
 import toast from 'react-hot-toast';
+import {
+  QrCode,
+  MapPin,
+  RefreshCw,
+  CheckCircle2,
+  Clock,
+  Navigation,
+  ArrowLeft,
+  Sparkles,
+} from 'lucide-react';
 
 export default function SessionDetail() {
   const { id } = useParams();
@@ -13,22 +23,38 @@ export default function SessionDetail() {
   const [secondsLeft, setSecondsLeft] = useState(0);
   const [radiusMeters, setRadiusMeters] = useState(75);
   const [locationStatus, setLocationStatus] = useState('');
+  const [updatingLocation, setUpdatingLocation] = useState(false);
+  const [qrLoading, setQrLoading] = useState(false);
 
   const loadSession = useCallback(async () => {
-    const { data } = await api.get(`/sessions/${id}`);
-    setSession(data);
-    if (data.classBatch?.classroom?.radiusMeters) setRadiusMeters(data.classBatch.classroom.radiusMeters);
-    return data;
+    try {
+      const { data } = await api.get(`/sessions/${id}`);
+      setSession(data);
+      if (data.classBatch?.classroom?.radiusMeters) {
+        setRadiusMeters(data.classBatch.classroom.radiusMeters);
+      }
+      return data;
+    } catch (err) {
+      toast.error('Failed to load session details');
+    }
   }, [id]);
 
   const loadAttendance = useCallback(async () => {
-    const { data } = await api.get(`/attendance/session/${id}`);
-    setAttendance(data);
+    try {
+      const { data } = await api.get(`/attendance/session/${id}`);
+      setAttendance(data);
+    } catch (err) {
+      console.error('Failed to load attendance', err);
+    }
   }, [id]);
 
   const loadStudents = useCallback(async (classBatchId) => {
-    const { data } = await api.get('/students', { params: { classBatch: classBatchId } });
-    setStudents(data);
+    try {
+      const { data } = await api.get('/students', { params: { classBatch: classBatchId } });
+      setStudents(data);
+    } catch (err) {
+      console.error('Failed to load students', err);
+    }
   }, []);
 
   useEffect(() => {
@@ -50,13 +76,16 @@ export default function SessionDetail() {
   }, [qr]);
 
   const generateQR = async (showToast = true) => {
+    if (showToast) setQrLoading(true);
     try {
       const { data } = await api.post(`/sessions/${id}/qr`);
       setQr(data);
-      if (showToast) toast.success('QR code generated — it will rotate automatically');
+      if (showToast) toast.success('Dynamic rotating QR code activated');
       if (showToast) loadSession();
     } catch (err) {
       if (showToast) toast.error(err.response?.data?.message || 'Failed to generate QR');
+    } finally {
+      if (showToast) setQrLoading(false);
     }
   };
 
@@ -68,10 +97,11 @@ export default function SessionDetail() {
 
   const setClassroomLocation = () => {
     if (!navigator.geolocation) {
-      setLocationStatus('This browser does not support location. Use a recent browser on a GPS-enabled device.');
+      setLocationStatus('This browser does not support geolocation lookup.');
       return;
     }
-    setLocationStatus('Reading your current location...');
+    setUpdatingLocation(true);
+    setLocationStatus('Locating your device coordinate...');
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         try {
@@ -80,20 +110,24 @@ export default function SessionDetail() {
             longitude: position.coords.longitude,
             radiusMeters: Number(radiusMeters),
           });
-          setLocationStatus('Classroom location saved.');
+          setLocationStatus('Classroom geofence saved successfully.');
           loadSession();
-          toast.success('Classroom location saved');
+          toast.success('Geofence coordinate configured');
         } catch (err) {
           setLocationStatus(err.response?.data?.message || 'Could not save classroom location.');
+          toast.error('Could not save location');
+        } finally {
+          setUpdatingLocation(false);
         }
       },
       (error) => {
+        setUpdatingLocation(false);
         const messages = {
-          1: 'Location permission was denied. Allow location access in the browser and try again.',
-          2: 'Your location is unavailable. Turn on device location and try again.',
-          3: 'Location lookup timed out. Move near a window and try again.',
+          1: 'Location permission was denied. Allow location access in browser settings.',
+          2: 'Your device location is unavailable. Check GPS/Wi-Fi.',
+          3: 'Location lookup timed out. Please try again.',
         };
-        setLocationStatus(messages[error.code] || 'Could not read your current location.');
+        setLocationStatus(messages[error.code] || 'Could not read current GPS coordinates.');
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
@@ -102,113 +136,232 @@ export default function SessionDetail() {
   const markStatus = async (studentId, status) => {
     try {
       await api.post('/attendance/manual', { sessionId: id, studentId, status });
+      toast.success('Attendance updated');
       loadAttendance();
     } catch (err) {
       toast.error('Failed to update attendance');
     }
   };
 
-  const attendanceMap = Object.fromEntries(attendance.map((a) => [a.student._id, a]));
+  // Safe mapping preventing null pointer crashes if a.student is unpopulated
+  const attendanceMap = Object.fromEntries(
+    attendance.map((a) => [a.student?._id || a.student, a])
+  );
 
-  if (!session) return <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500 shadow-soft">Loading...</div>;
+  if (!session) {
+    return (
+      <div className="flex min-h-[300px] items-center justify-center rounded-3xl border border-slate-200/80 bg-white/80 p-8 text-sm font-medium text-slate-500 shadow-soft dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-400">
+        <RefreshCw className="h-5 w-5 animate-spin text-brand-600 dark:text-brand-400" />
+      </div>
+    );
+  }
 
   const attendanceMarked = attendance.filter((item) => item.status !== 'unmarked').length;
   const presentCount = attendance.filter((item) => ['present', 'late', 'on_duty'].includes(item.status)).length;
+  const attendancePercent = students.length > 0 ? Math.round((presentCount / students.length) * 100) : 0;
 
   return (
     <div className="space-y-6">
-      <div className="rounded-[28px] border border-brand-100 bg-gradient-to-r from-brand-700 via-brand-600 to-brand-500 p-5 text-white shadow-soft sm:p-6">
+      <Link
+        to="/faculty"
+        className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 transition-colors"
+      >
+        <ArrowLeft className="h-4 w-4" /> Back to My Sessions
+      </Link>
+
+      {/* Session Hero Banner */}
+      <div className="hero-banner">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-brand-100">Session</p>
-            <h1 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">{session.course?.name}</h1>
-            <p className="mt-2 text-sm text-brand-50/90">
-              {session.classBatch?.name} • {new Date(session.date).toLocaleDateString()} • {session.startTime}-{session.endTime}
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-bold uppercase tracking-widest text-indigo-100 backdrop-blur-md">
+              <Clock className="h-3.5 w-3.5" /> Session Active
+            </div>
+            <h1 className="mt-3 text-2xl font-extrabold tracking-tight text-white sm:text-3xl">
+              {session.course?.name || 'Class Session'}
+            </h1>
+            <p className="mt-1 text-sm text-indigo-100/90">
+              {session.classBatch?.name} • {new Date(session.date).toLocaleDateString(undefined, { dateStyle: 'long' })} • {session.startTime} - {session.endTime}
             </p>
           </div>
-          <div className="inline-flex items-center gap-2 self-start rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-medium text-brand-50 backdrop-blur-sm">
-            <Badge color={session.type === 'practical' ? 'blue' : session.type === 'project' ? 'purple' : 'gray'} className="!bg-white/10 !text-white !border-white/20">
+          <div className="flex items-center gap-2">
+            <Badge color={session.type === 'practical' ? 'blue' : session.type === 'project' ? 'purple' : 'gray'}>
               {session.type}
+            </Badge>
+            <Badge color={session.status === 'held' ? 'green' : 'yellow'} dot>
+              {session.status === 'held' ? 'Completed' : 'Live'}
             </Badge>
           </div>
         </div>
 
-        <div className="mt-5 grid gap-3 sm:grid-cols-3">
-          <div className="rounded-2xl border border-white/10 bg-white/8 p-3 backdrop-blur-sm">
-            <p className="text-xs uppercase tracking-[0.18em] text-brand-100">Students</p>
-            <p className="mt-2 text-2xl font-bold">{students.length}</p>
-            <p className="text-sm text-brand-50/80">in this batch</p>
+        {/* Live Counters */}
+        <div className="mt-6 grid gap-3 sm:grid-cols-4">
+          <div className="rounded-2xl border border-white/15 bg-white/10 p-3.5 backdrop-blur-md">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-indigo-100">Cohort Enrolled</p>
+            <p className="mt-1 text-2xl font-extrabold text-white">{students.length}</p>
           </div>
-          <div className="rounded-2xl border border-white/10 bg-white/8 p-3 backdrop-blur-sm">
-            <p className="text-xs uppercase tracking-[0.18em] text-brand-100">Marked</p>
-            <p className="mt-2 text-2xl font-bold">{attendanceMarked}</p>
-            <p className="text-sm text-brand-50/80">attendance updates</p>
+          <div className="rounded-2xl border border-white/15 bg-white/10 p-3.5 backdrop-blur-md">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-indigo-100">Marked Total</p>
+            <p className="mt-1 text-2xl font-extrabold text-white">{attendanceMarked}</p>
           </div>
-          <div className="rounded-2xl border border-white/10 bg-white/8 p-3 backdrop-blur-sm">
-            <p className="text-xs uppercase tracking-[0.18em] text-brand-100">Present</p>
-            <p className="mt-2 text-2xl font-bold">{presentCount}</p>
-            <p className="text-sm text-brand-50/80">verified entries</p>
+          <div className="rounded-2xl border border-white/15 bg-white/10 p-3.5 backdrop-blur-md">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-indigo-100">Verified Present</p>
+            <p className="mt-1 text-2xl font-extrabold text-white">{presentCount}</p>
+          </div>
+          <div className="rounded-2xl border border-white/15 bg-white/10 p-3.5 backdrop-blur-md">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-indigo-100">Turnout %</p>
+            <p className="mt-1 text-2xl font-extrabold text-white">{attendancePercent}%</p>
           </div>
         </div>
       </div>
 
-      <div className="grid gap-5 md:grid-cols-2">
-        <Card title="QR Check-in">
-          <Button onClick={generateQR} className="mb-4 inline-flex items-center gap-2">
-            <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4"><path d="M12 4a8 8 0 0 1 7.75 6h-2.13a6 6 0 1 0 0 4h2.13A8 8 0 1 1 12 4Zm0 3.5a1 1 0 0 1 1 1v3.38l2.42 1.4a1 1 0 1 1-1 1.72l-2.92-1.69A1 1 0 0 1 11 13V8.5a1 1 0 0 1 1-1Z" fill="currentColor"/></svg>
-            {qr ? 'Regenerate' : 'Generate'} QR Code
-          </Button>
-          {qr && (
-            <div className="text-center">
-              <img src={qr.qrDataUrl} alt="Session QR" className="mx-auto h-48 w-48 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm" />
-              <p className="mt-3 text-sm text-slate-500">
-                {secondsLeft > 0 ? `Rotates in ${secondsLeft}s` : 'Expired — waiting for the next rotation'}
-              </p>
-              <p className="mt-1 text-xs text-slate-400">This QR rotates automatically. Students scan it with the "Scan QR" page.</p>
-            </div>
-          )}
-          <div className="mt-5 border-t border-slate-200 pt-4">
-            <p className="text-sm font-semibold text-slate-700">Classroom geofence</p>
-            <p className="mt-1 text-xs text-slate-500">Set this while standing in the classroom. Student QR check-ins must be inside this radius.</p>
-            <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end">
-              <label className="text-sm text-slate-600">
-                Radius (m)
-                <input
-                  type="number"
-                  min="1"
-                  max="1000"
-                  value={radiusMeters}
-                  onChange={(e) => setRadiusMeters(e.target.value)}
-                  className="mt-1 block w-24 rounded-xl border border-slate-200 bg-white px-2 py-2 text-sm text-slate-700 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-100"
-                />
-              </label>
-              <Button variant="outline" onClick={setClassroomLocation}>Use My Current Location</Button>
-            </div>
-            {session.classBatch?.classroom?.latitude != null && (
-              <p className="mt-2 text-xs text-emerald-600">Location configured ({session.classBatch.classroom.radiusMeters}m radius).</p>
-            )}
-            {locationStatus && <p className="mt-2 text-xs text-slate-500">{locationStatus}</p>}
-          </div>
-        </Card>
+      <div className="grid gap-6 lg:grid-cols-[1fr_1.3fr]">
+        {/* QR Code Projection & Geofencing Card */}
+        <div className="space-y-6">
+          <Card title="Live QR Check-In" subtitle="Project this rotating code on screen for students to scan">
+            <div className="flex flex-col items-center justify-center p-2 text-center">
+              {!qr ? (
+                <div className="py-10 text-center space-y-3">
+                  <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-400">
+                    <QrCode className="h-8 w-8" />
+                  </div>
+                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+                    Dynamic QR Code Not Generated
+                  </p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 max-w-xs">
+                    Generate the rotating session check-in code. Tokens automatically rotate to prevent screenshot sharing.
+                  </p>
+                  <Button
+                    onClick={() => generateQR(true)}
+                    loading={qrLoading}
+                    icon={Sparkles}
+                    className="shadow-md"
+                  >
+                    Generate Rotating QR
+                  </Button>
+                </div>
+              ) : (
+                <div className="w-full space-y-4">
+                  <div className="mx-auto max-w-[240px] rounded-3xl border-2 border-brand-500/30 bg-white p-3 shadow-card dark:border-brand-500/50">
+                    <img
+                      src={qr.qrDataUrl}
+                      alt="Session Check-in QR"
+                      className="mx-auto h-52 w-52 rounded-2xl object-contain"
+                    />
+                  </div>
 
-        <Card title={`Mark Attendance Manually (${students.length} students)`}>
+                  {/* Countdown Timer */}
+                  <div className="space-y-1.5 text-center">
+                    <div className="inline-flex items-center gap-1.5 rounded-full border border-indigo-200/80 bg-indigo-50 px-3 py-1 text-xs font-bold text-indigo-700 dark:border-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-300">
+                      <RefreshCw className={`h-3.5 w-3.5 ${secondsLeft > 0 ? 'animate-spin' : ''}`} />
+                      <span>{secondsLeft > 0 ? `Rotates in ${secondsLeft}s` : 'Refreshing token...'}</span>
+                    </div>
+                    <p className="text-[11px] text-slate-400">
+                      Tokens change automatically every {qr.rotationIntervalSeconds || 15}s.
+                    </p>
+                  </div>
+
+                  <div className="pt-2 flex justify-center">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      icon={RefreshCw}
+                      onClick={() => generateQR(true)}
+                    >
+                      Force Regenerate
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Geofence Configuration Section */}
+            <div className="mt-6 border-t border-slate-100 pt-5 dark:border-slate-800">
+              <div className="flex items-center gap-2 mb-1">
+                <MapPin className="h-4 w-4 text-brand-600 dark:text-brand-400" />
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white">
+                  Classroom Geofence Fence
+                </h4>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
+                Students must physically be within this GPS perimeter to mark attendance via QR scan.
+              </p>
+
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-2.5">
+                <div className="w-32">
+                  <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
+                    Radius (Meters)
+                  </label>
+                  <Input
+                    type="number"
+                    min="10"
+                    max="1000"
+                    value={radiusMeters}
+                    onChange={(e) => setRadiusMeters(e.target.value)}
+                  />
+                </div>
+                <Button
+                  variant="secondary"
+                  size="md"
+                  icon={Navigation}
+                  loading={updatingLocation}
+                  onClick={setClassroomLocation}
+                  className="flex-1"
+                >
+                  Capture Classroom GPS
+                </Button>
+              </div>
+
+              {locationStatus && (
+                <p className="mt-2.5 text-xs text-slate-600 dark:text-slate-400 flex items-center gap-1.5">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                  <span>{locationStatus}</span>
+                </p>
+              )}
+
+              {session.classBatch?.classroom?.latitude != null && (
+                <div className="mt-3 rounded-xl border border-emerald-200/80 bg-emerald-50/60 p-2.5 text-xs text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300">
+                  Active coordinate: {session.classBatch.classroom.latitude.toFixed(4)}, {session.classBatch.classroom.longitude.toFixed(4)} ({session.classBatch.classroom.radiusMeters}m perimeter)
+                </div>
+              )}
+            </div>
+          </Card>
+        </div>
+
+        {/* Manual Roll Call Table Card */}
+        <Card
+          title={`Student Roll Call (${students.length})`}
+          subtitle="Mark or override status manually for students with device issues"
+        >
           <Table
             columns={[
-              { key: 'rollNo', header: 'Roll No' },
-              { key: 'name', header: 'Name' },
+              {
+                key: 'student',
+                header: 'Student',
+                render: (r) => (
+                  <div>
+                    <p className="font-semibold text-slate-900 dark:text-white">{r.name}</p>
+                    <p className="text-xs font-mono text-slate-500 dark:text-slate-400">{r.rollNo}</p>
+                  </div>
+                ),
+              },
               {
                 key: 'status',
                 header: 'Status',
                 render: (r) => {
-                  const current = attendanceMap[r._id]?.status || 'unmarked';
+                  const record = attendanceMap[r._id];
+                  const current = record?.status || 'unmarked';
                   return (
                     <div className="flex items-center gap-2">
-                      <Select value={current} onChange={(e) => markStatus(r._id, e.target.value)}>
-                        <option value="unmarked" disabled>Unmarked</option>
+                      <Select
+                        value={current}
+                        onChange={(e) => markStatus(r._id, e.target.value)}
+                        className="!py-1 !text-xs min-w-[130px]"
+                      >
+                        <option value="unmarked">Unmarked</option>
                         <option value="present">Present</option>
                         <option value="absent">Absent</option>
                         <option value="late">Late</option>
-                        <option value="on_duty">On Duty (OD / Visit)</option>
+                        <option value="on_duty">On Duty (OD)</option>
                       </Select>
                       {current === 'on_duty' && <Badge color="purple">OD</Badge>}
                     </div>
@@ -217,17 +370,21 @@ export default function SessionDetail() {
               },
               {
                 key: 'method',
-                header: 'Method / Info',
+                header: 'Check-In Method',
                 render: (r) => {
                   const record = attendanceMap[r._id];
-                  if (!record) return null;
+                  if (!record) {
+                    return <span className="text-xs text-slate-400">Not recorded</span>;
+                  }
                   return (
-                    <div className="flex flex-col gap-0.5">
-                      <Badge color={record.status === 'on_duty' ? 'purple' : 'gray'}>{record.method}</Badge>
+                    <div>
+                      <Badge color={record.status === 'on_duty' ? 'purple' : 'gray'}>
+                        {record.method || 'manual'}
+                      </Badge>
                       {record.dutyReason && (
-                        <span className="max-w-[120px] truncate text-[10px] italic text-slate-500" title={record.dutyReason}>
+                        <p className="mt-0.5 truncate text-[10px] text-slate-400 max-w-[120px]" title={record.dutyReason}>
                           {record.dutyReason}
-                        </span>
+                        </p>
                       )}
                     </div>
                   );
@@ -235,6 +392,7 @@ export default function SessionDetail() {
               },
             ]}
             data={students}
+            emptyText="No students registered in this batch."
           />
         </Card>
       </div>

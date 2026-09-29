@@ -3,6 +3,13 @@ import api from '../../api/client';
 import { Card, Button, Input, Select, Table, Badge } from '../../components/ui';
 import { validateAcademicYearForm, validateDepartmentForm, validateBatchForm, validateCourseForm } from '../../validators';
 import toast from 'react-hot-toast';
+import {
+  Settings,
+  Plus,
+  Download,
+  Upload,
+  CheckCircle2,
+} from 'lucide-react';
 
 export default function AcademicSetup() {
   const [departments, setDepartments] = useState([]);
@@ -26,22 +33,35 @@ export default function AcademicSetup() {
   const [deptErrors, setDeptErrors] = useState({ name: '', code: '' });
   const [yearErrors, setYearErrors] = useState({ label: '', startDate: '', endDate: '' });
   const [batchErrors, setBatchErrors] = useState({ name: '', department: '', semester: '', academicYear: '' });
-  const [courseErrors, setCourseErrors] = useState({ name: '', code: '', type: '', department: '', semester: '', weeklyHours: '', academicYear: '' });
+  const [courseErrors, setCourseErrors] = useState({
+    name: '',
+    code: '',
+    type: '',
+    department: '',
+    semester: '',
+    weeklyHours: '',
+    academicYear: '',
+  });
+
   const courseFileInputRef = useRef(null);
   const [courseImporting, setCourseImporting] = useState(false);
   const [courseImportResult, setCourseImportResult] = useState(null);
 
   const loadAll = async () => {
-    const [d, y, b, c] = await Promise.all([
-      api.get('/academic/departments'),
-      api.get('/academic/academic-years'),
-      api.get('/academic/class-batches'),
-      api.get('/academic/courses'),
-    ]);
-    setDepartments(d.data);
-    setYears(y.data);
-    setBatches(b.data);
-    setCourses(c.data);
+    try {
+      const [d, y, b, c] = await Promise.all([
+        api.get('/academic/departments'),
+        api.get('/academic/academic-years'),
+        api.get('/academic/class-batches'),
+        api.get('/academic/courses'),
+      ]);
+      setDepartments(d.data);
+      setYears(y.data);
+      setBatches(b.data);
+      setCourses(c.data);
+    } catch (e) {
+      console.error('Failed to load academic setup records', e);
+    }
   };
 
   useEffect(() => {
@@ -93,11 +113,11 @@ export default function AcademicSetup() {
 
     try {
       await fn();
-      toast.success('Saved');
+      toast.success('Record saved successfully');
       resetFn();
       loadAll();
     } catch (e) {
-      toast.error(e.response?.data?.message || 'Failed to save');
+      toast.error(e.response?.data?.message || 'Failed to save record');
     }
   };
 
@@ -146,24 +166,32 @@ export default function AcademicSetup() {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-[30px] border border-indigo-200/80 bg-gradient-to-r from-indigo-100 via-violet-100 to-white p-5 text-slate-900 shadow-[0_18px_36px_rgba(79,70,229,0.08)] sm:p-6">
+      {/* Hero Banner */}
+      <div className="hero-banner">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-indigo-600">Academic configuration</p>
-            <h1 className="mt-2 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">Academic Setup</h1>
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-bold uppercase tracking-widest text-indigo-100 backdrop-blur-md">
+              <Settings className="h-3.5 w-3.5" /> Institution Architecture
+            </div>
+            <h1 className="mt-3 text-2xl font-extrabold tracking-tight text-white sm:text-3xl">
+              Academic Setup
+            </h1>
+            <p className="mt-1 text-sm text-indigo-100/90">
+              Configure academic years, departments, class cohorts, and course subjects.
+            </p>
           </div>
-          <div className="inline-flex items-center gap-2 self-start rounded-full border border-slate-200 bg-white/80 px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm">
-            <span className="h-2 w-2 rounded-full bg-emerald-500" />
-            Enrollment data synced
+          <div className="inline-flex items-center gap-2 self-start rounded-full border border-white/20 bg-white/10 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm backdrop-blur-md">
+            <CheckCircle2 className="h-4 w-4 text-emerald-300" />
+            <span>Setup Active</span>
           </div>
         </div>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-5">
-        {/* Academic Years */}
-        <Card title="Academic Years">
+      <div className="grid gap-6 md:grid-cols-2">
+        {/* Academic Years Card */}
+        <Card title="Academic Years" subtitle="Define active session periods">
           <form
-            className="grid grid-cols-3 gap-2 mb-4"
+            className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mb-5"
             onSubmit={(e) => {
               e.preventDefault();
               submit(
@@ -176,44 +204,52 @@ export default function AcademicSetup() {
               );
             }}
           >
-            <div className="col-span-1">
+            <div>
               <Input
-                placeholder="2026-2027"
+                placeholder="e.g. 2026-2027"
                 value={yearForm.label}
                 onChange={(e) => setYearForm({ ...yearForm, label: e.target.value })}
                 error={yearErrors.label}
               />
-              {yearErrors.label && <p className="mt-1 text-xs text-red-500">{yearErrors.label}</p>}
+              {yearErrors.label && <p className="mt-1 text-xs text-rose-500">{yearErrors.label}</p>}
             </div>
-            <div className="col-span-1">
+            <div>
               <Input
                 type="date"
                 value={yearForm.startDate}
                 onChange={(e) => setYearForm({ ...yearForm, startDate: e.target.value })}
                 error={yearErrors.startDate}
               />
-              {yearErrors.startDate && <p className="mt-1 text-xs text-red-500">{yearErrors.startDate}</p>}
+              {yearErrors.startDate && <p className="mt-1 text-xs text-rose-500">{yearErrors.startDate}</p>}
             </div>
-            <div className="col-span-1">
+            <div>
               <Input
                 type="date"
                 value={yearForm.endDate}
                 onChange={(e) => setYearForm({ ...yearForm, endDate: e.target.value })}
                 error={yearErrors.endDate}
               />
-              {yearErrors.endDate && <p className="mt-1 text-xs text-red-500">{yearErrors.endDate}</p>}
+              {yearErrors.endDate && <p className="mt-1 text-xs text-rose-500">{yearErrors.endDate}</p>}
             </div>
-            <div className="col-span-3">
-              <Button type="submit">+ Add Academic Year</Button>
+            <div className="sm:col-span-3">
+              <Button type="submit" icon={Plus} size="sm" className="w-full sm:w-auto">
+                Add Academic Year
+              </Button>
             </div>
           </form>
+
           <Table
             columns={[
-              { key: 'label', header: 'Label' },
+              { key: 'label', header: 'Year Label' },
               {
                 key: 'status',
                 header: 'Status',
-                render: (r) => (r.isActive ? <Badge color="green">Active</Badge> : <Badge>Inactive</Badge>),
+                render: (r) =>
+                  r.isActive ? (
+                    <Badge color="green" dot>Active</Badge>
+                  ) : (
+                    <Badge color="gray">Inactive</Badge>
+                  ),
               },
               {
                 key: 'actions',
@@ -222,7 +258,8 @@ export default function AcademicSetup() {
                   !r.isActive && (
                     <Button
                       variant="outline"
-                      className="!py-1 !px-2 text-xs"
+                      size="sm"
+                      className="!py-1 !px-2.5 text-xs"
                       onClick={() =>
                         submit(
                           () => api.put(`/academic/academic-years/${r._id}/activate`),
@@ -239,10 +276,10 @@ export default function AcademicSetup() {
           />
         </Card>
 
-        {/* Departments */}
-        <Card title="Departments">
+        {/* Departments Card */}
+        <Card title="Departments" subtitle="Academic branches and divisions">
           <form
-            className="grid grid-cols-2 gap-2 mb-4"
+            className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mb-5"
             onSubmit={(e) => {
               e.preventDefault();
               submit(
@@ -255,52 +292,48 @@ export default function AcademicSetup() {
               );
             }}
           >
-            {Object.values(courseErrors).some(Boolean) && (
-              <div className="col-span-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
-                <p className="font-medium">Complete these course fields:</p>
-                <p className="mt-1">
-                  {Object.entries(courseErrors)
-                    .filter(([, message]) => message)
-                    .map(([field]) => field.replace(/([A-Z])/g, ' $1').replace(/^./, (letter) => letter.toUpperCase()))
-                    .join(', ')}
-                </p>
-              </div>
-            )}
             <div>
               <Input
-                placeholder="Name (Computer Science)"
+                placeholder="Department Name (Computer Science)"
                 value={deptForm.name}
                 onChange={(e) => setDeptForm({ ...deptForm, name: e.target.value })}
                 error={deptErrors.name}
               />
-              {deptErrors.name && <p className="mt-1 text-xs text-red-500">{deptErrors.name}</p>}
+              {deptErrors.name && <p className="mt-1 text-xs text-rose-500">{deptErrors.name}</p>}
             </div>
             <div>
               <Input
-                placeholder="Code (CS)"
+                placeholder="Code (e.g. CS)"
                 value={deptForm.code}
                 onChange={(e) => setDeptForm({ ...deptForm, code: e.target.value })}
                 error={deptErrors.code}
               />
-              {deptErrors.code && <p className="mt-1 text-xs text-red-500">{deptErrors.code}</p>}
+              {deptErrors.code && <p className="mt-1 text-xs text-rose-500">{deptErrors.code}</p>}
             </div>
-            <div className="col-span-2">
-              <Button type="submit">+ Add Department</Button>
+            <div className="sm:col-span-2">
+              <Button type="submit" icon={Plus} size="sm" className="w-full sm:w-auto">
+                Add Department
+              </Button>
             </div>
           </form>
+
           <Table
             columns={[
-              { key: 'name', header: 'Name' },
-              { key: 'code', header: 'Code' },
+              { key: 'name', header: 'Department Name' },
+              {
+                key: 'code',
+                header: 'Code',
+                render: (r) => <Badge color="indigo">{r.code}</Badge>,
+              },
             ]}
             data={departments}
           />
         </Card>
 
-        {/* Class Batches */}
-        <Card title="Class Batches">
+        {/* Class Batches Card */}
+        <Card title="Class Batches / Divisions" subtitle="Cohort groups enrolled in semesters">
           <form
-            className="grid grid-cols-2 gap-2 mb-4"
+            className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mb-5"
             onSubmit={(e) => {
               e.preventDefault();
               submit(
@@ -315,22 +348,24 @@ export default function AcademicSetup() {
           >
             <div>
               <Input
-                placeholder="Name (CS-3A)"
+                placeholder="Batch Name (e.g. CS-3A)"
                 value={batchForm.name}
                 onChange={(e) => setBatchForm({ ...batchForm, name: e.target.value })}
                 error={batchErrors.name}
               />
-              {batchErrors.name && <p className="mt-1 text-xs text-red-500">{batchErrors.name}</p>}
+              {batchErrors.name && <p className="mt-1 text-xs text-rose-500">{batchErrors.name}</p>}
             </div>
             <div>
               <Input
-                placeholder="Semester"
+                placeholder="Semester (1-8)"
                 type="number"
+                min="1"
+                max="8"
                 value={batchForm.semester}
                 onChange={(e) => setBatchForm({ ...batchForm, semester: e.target.value })}
                 error={batchErrors.semester}
               />
-              {batchErrors.semester && <p className="mt-1 text-xs text-red-500">{batchErrors.semester}</p>}
+              {batchErrors.semester && <p className="mt-1 text-xs text-rose-500">{batchErrors.semester}</p>}
             </div>
             <div>
               <Select
@@ -340,12 +375,10 @@ export default function AcademicSetup() {
               >
                 <option value="">Select Department</option>
                 {departments.map((d) => (
-                  <option key={d._id} value={d._id}>
-                    {d.name}
-                  </option>
+                  <option key={d._id} value={d._id}>{d.name}</option>
                 ))}
               </Select>
-              {batchErrors.department && <p className="mt-1 text-xs text-red-500">{batchErrors.department}</p>}
+              {batchErrors.department && <p className="mt-1 text-xs text-rose-500">{batchErrors.department}</p>}
             </div>
             <div>
               <Select
@@ -355,32 +388,37 @@ export default function AcademicSetup() {
               >
                 <option value="">Select Academic Year</option>
                 {years.map((y) => (
-                  <option key={y._id} value={y._id}>
-                    {y.label}
-                  </option>
+                  <option key={y._id} value={y._id}>{y.label}</option>
                 ))}
               </Select>
-              {batchErrors.academicYear && <p className="mt-1 text-xs text-red-500">{batchErrors.academicYear}</p>}
+              {batchErrors.academicYear && <p className="mt-1 text-xs text-rose-500">{batchErrors.academicYear}</p>}
             </div>
-            <div className="col-span-2">
-              <Button type="submit">+ Add Class Batch</Button>
+            <div className="sm:col-span-2">
+              <Button type="submit" icon={Plus} size="sm" className="w-full sm:w-auto">
+                Add Class Batch
+              </Button>
             </div>
           </form>
+
           <Table
             columns={[
-              { key: 'name', header: 'Name' },
-              { key: 'semester', header: 'Sem' },
-              { key: 'department', header: 'Dept', render: (r) => r.department?.name },
-              { key: 'academicYear', header: 'Year', render: (r) => r.academicYear?.label },
+              { key: 'name', header: 'Batch' },
+              {
+                key: 'semester',
+                header: 'Sem',
+                render: (r) => <Badge color="gray">Sem {r.semester}</Badge>,
+              },
+              { key: 'department', header: 'Department', render: (r) => r.department?.name },
+              { key: 'academicYear', header: 'Academic Year', render: (r) => r.academicYear?.label },
             ]}
             data={batches}
           />
         </Card>
 
-        {/* Courses */}
-        <Card title="Courses / Subjects">
+        {/* Courses / Subjects Card */}
+        <Card title="Courses / Subjects" subtitle="Lecture, practical, and project units">
           <form
-            className="grid grid-cols-2 gap-2 mb-4"
+            className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mb-5"
             onSubmit={(e) => {
               e.preventDefault();
               submit(
@@ -395,7 +433,15 @@ export default function AcademicSetup() {
                     weeklyHours: 1,
                     academicYear: '',
                   });
-                  setCourseErrors({ name: '', code: '', type: '', department: '', semester: '', weeklyHours: '', academicYear: '' });
+                  setCourseErrors({
+                    name: '',
+                    code: '',
+                    type: '',
+                    department: '',
+                    semester: '',
+                    weeklyHours: '',
+                    academicYear: '',
+                  });
                 },
                 validateCourse
               );
@@ -403,31 +449,33 @@ export default function AcademicSetup() {
           >
             <div>
               <Input
-                placeholder="Course Name"
+                placeholder="Course Title"
                 value={courseForm.name}
                 onChange={(e) => setCourseForm({ ...courseForm, name: e.target.value })}
                 error={courseErrors.name}
               />
-              {courseErrors.name && <p className="mt-1 text-xs text-red-500">{courseErrors.name}</p>}
+              {courseErrors.name && <p className="mt-1 text-xs text-rose-500">{courseErrors.name}</p>}
             </div>
             <div>
               <Input
-                placeholder="Code (CS501)"
+                placeholder="Code (e.g. CS501)"
                 value={courseForm.code}
                 onChange={(e) => setCourseForm({ ...courseForm, code: e.target.value })}
                 error={courseErrors.code}
               />
-              {courseErrors.code && <p className="mt-1 text-xs text-red-500">{courseErrors.code}</p>}
+              {courseErrors.code && <p className="mt-1 text-xs text-rose-500">{courseErrors.code}</p>}
             </div>
             <div>
               <Input
                 placeholder="Semester"
                 type="number"
+                min="1"
+                max="8"
                 value={courseForm.semester}
                 onChange={(e) => setCourseForm({ ...courseForm, semester: e.target.value })}
                 error={courseErrors.semester}
               />
-              {courseErrors.semester && <p className="mt-1 text-xs text-red-500">{courseErrors.semester}</p>}
+              {courseErrors.semester && <p className="mt-1 text-xs text-rose-500">{courseErrors.semester}</p>}
             </div>
             <div>
               <Select
@@ -439,17 +487,18 @@ export default function AcademicSetup() {
                 <option value="practical">Practical</option>
                 <option value="project">Project (Guide Review)</option>
               </Select>
-              {courseErrors.type && <p className="mt-1 text-xs text-red-500">{courseErrors.type}</p>}
+              {courseErrors.type && <p className="mt-1 text-xs text-rose-500">{courseErrors.type}</p>}
             </div>
             <div>
               <Input
                 placeholder="Weekly Hours"
                 type="number"
+                min="1"
                 value={courseForm.weeklyHours}
                 onChange={(e) => setCourseForm({ ...courseForm, weeklyHours: e.target.value })}
                 error={courseErrors.weeklyHours}
               />
-              {courseErrors.weeklyHours && <p className="mt-1 text-xs text-red-500">{courseErrors.weeklyHours}</p>}
+              {courseErrors.weeklyHours && <p className="mt-1 text-xs text-rose-500">{courseErrors.weeklyHours}</p>}
             </div>
             <div>
               <Select
@@ -459,14 +508,12 @@ export default function AcademicSetup() {
               >
                 <option value="">Select Department</option>
                 {departments.map((d) => (
-                  <option key={d._id} value={d._id}>
-                    {d.name}
-                  </option>
+                  <option key={d._id} value={d._id}>{d.name}</option>
                 ))}
               </Select>
-              {courseErrors.department && <p className="mt-1 text-xs text-red-500">{courseErrors.department}</p>}
+              {courseErrors.department && <p className="mt-1 text-xs text-rose-500">{courseErrors.department}</p>}
             </div>
-            <div className="col-span-2">
+            <div className="sm:col-span-2">
               <Select
                 value={courseForm.academicYear}
                 onChange={(e) => setCourseForm({ ...courseForm, academicYear: e.target.value })}
@@ -474,54 +521,92 @@ export default function AcademicSetup() {
               >
                 <option value="">Select Academic Year</option>
                 {years.map((y) => (
-                  <option key={y._id} value={y._id}>
-                    {y.label}
-                  </option>
+                  <option key={y._id} value={y._id}>{y.label}</option>
                 ))}
               </Select>
-              {courseErrors.academicYear && <p className="mt-1 text-xs text-red-500">{courseErrors.academicYear}</p>}
+              {courseErrors.academicYear && <p className="mt-1 text-xs text-rose-500">{courseErrors.academicYear}</p>}
             </div>
-            <div className="col-span-2">
-              <Button type="submit">+ Add Course</Button>
+            <div className="sm:col-span-2">
+              <Button type="submit" icon={Plus} size="sm" className="w-full sm:w-auto">
+                Add Course
+              </Button>
             </div>
           </form>
-          <div className="mt-4 mb-4 flex flex-wrap items-center gap-3">
-            <Button variant="outline" type="button" onClick={handleCourseDownloadTemplate} className="inline-flex items-center gap-2">
-              <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4"><path d="M12 3.5a1 1 0 0 1 1 1V12l2.3-2.3a1 1 0 1 1 1.4 1.4l-4 4a1 1 0 0 1-1.4 0l-4-4a1 1 0 1 1 1.4-1.4L11 12V4.5a1 1 0 0 1 1-1Zm-7 12a1 1 0 0 1 1 1v1.5h12V16.5a1 1 0 1 1 2 0v2.5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-2.5a1 1 0 0 1 1-1Z" fill="currentColor"/></svg>
-              Download Template
-            </Button>
-            <input ref={courseFileInputRef} type="file" accept=".xlsx,.xls,.csv" onChange={handleCourseFileImport} disabled={courseImporting} className="text-sm" />
-            {courseImporting && <span className="text-sm text-gray-500">Importing...</span>}
-          </div>
 
-          {courseImportResult && (
-            <div className="mt-4">
-              <div className="flex gap-2 mb-2">
-                <Badge color="green">{courseImportResult.created} created</Badge>
-                {courseImportResult.failed > 0 && <Badge color="red">{courseImportResult.failed} failed</Badge>}
-              </div>
-              <div className="max-h-64 overflow-y-auto border border-gray-100 rounded-lg">
-                <Table
-                  columns={[
-                    { key: 'row', header: 'Row' },
-                    { key: 'code', header: 'Code' },
-                    { key: 'name', header: 'Name' },
-                    {
-                      key: 'status',
-                      header: 'Status',
-                      render: (r) => <Badge color={r.status === 'created' ? 'green' : 'red'}>{r.status}</Badge>,
-                    },
-                    { key: 'message', header: 'Details' },
-                  ]}
-                  data={courseImportResult.rows}
+          {/* Bulk Import Strip */}
+          <div className="rounded-2xl border border-slate-200/80 bg-slate-50/70 p-3.5 mb-4 dark:border-slate-800 dark:bg-slate-800/40">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400">
+                Bulk Import Courses
+              </span>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleCourseDownloadTemplate}
+                  icon={Download}
+                >
+                  Template
+                </Button>
+                <input
+                  ref={courseFileInputRef}
+                  type="file"
+                  accept=".xlsx,.xls,.csv"
+                  onChange={handleCourseFileImport}
+                  disabled={courseImporting}
+                  className="hidden"
+                  id="course-file-input"
                 />
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  icon={Upload}
+                  loading={courseImporting}
+                  onClick={() => courseFileInputRef.current?.click()}
+                >
+                  {courseImporting ? 'Uploading...' : 'Upload Excel'}
+                </Button>
               </div>
             </div>
-          )}
+
+            {courseImportResult && (
+              <div className="mt-3 border-t border-slate-200/80 pt-3 dark:border-slate-700">
+                <div className="flex gap-2 mb-2">
+                  <Badge color="green" dot>{courseImportResult.created} imported</Badge>
+                  {courseImportResult.failed > 0 && <Badge color="red" dot>{courseImportResult.failed} failed</Badge>}
+                </div>
+                <div className="max-h-48 overflow-y-auto">
+                  <Table
+                    columns={[
+                      { key: 'row', header: 'Row' },
+                      { key: 'code', header: 'Code' },
+                      { key: 'name', header: 'Course' },
+                      {
+                        key: 'status',
+                        header: 'Status',
+                        render: (r) => (
+                          <Badge color={r.status === 'created' ? 'green' : 'red'}>
+                            {r.status}
+                          </Badge>
+                        ),
+                      },
+                      { key: 'message', header: 'Details' },
+                    ]}
+                    data={courseImportResult.rows || []}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
           <Table
             columns={[
-              { key: 'name', header: 'Name' },
-              { key: 'code', header: 'Code' },
+              { key: 'name', header: 'Course Title' },
+              {
+                key: 'code',
+                header: 'Code',
+                render: (r) => <Badge color="indigo">{r.code}</Badge>,
+              },
               {
                 key: 'type',
                 header: 'Type',
@@ -531,7 +616,7 @@ export default function AcademicSetup() {
                   </Badge>
                 ),
               },
-              { key: 'weeklyHours', header: 'Hrs/wk' },
+              { key: 'weeklyHours', header: 'Hrs/wk', render: (r) => `${r.weeklyHours}h` },
             ]}
             data={courses}
           />

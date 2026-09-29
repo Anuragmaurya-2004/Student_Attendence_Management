@@ -3,12 +3,20 @@ import api from '../../api/client';
 import { Card, Button, Input, Select, Table, Badge } from '../../components/ui';
 import { validateStudentForm } from '../../validators';
 import toast from 'react-hot-toast';
+import {
+  GraduationCap,
+  Plus,
+  Download,
+  Upload,
+  Search,
+  Users,
+  Building2,
+} from 'lucide-react';
 
 const classOrder = { FE: 1, SE: 2, TE: 3, BE: 4 };
 
 const getClassLabel = (student) => {
   const semester = Number(student?.classBatch?.semester ?? 0);
-
   if (!semester) return 'Unassigned';
   if (semester <= 2) return 'FE';
   if (semester <= 4) return 'SE';
@@ -21,6 +29,8 @@ export default function ManageStudents() {
   const [batches, setBatches] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [years, setYears] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [classFilter, setClassFilter] = useState('all');
   const [form, setForm] = useState({
     name: '',
     rollNo: '',
@@ -49,16 +59,20 @@ export default function ManageStudents() {
   const [importResult, setImportResult] = useState(null);
 
   const load = async () => {
-    const [s, b, d, y] = await Promise.all([
-      api.get('/students'),
-      api.get('/academic/class-batches'),
-      api.get('/academic/departments'),
-      api.get('/academic/academic-years'),
-    ]);
-    setStudents(s.data);
-    setBatches(b.data);
-    setDepartments(d.data);
-    setYears(y.data);
+    try {
+      const [s, b, d, y] = await Promise.all([
+        api.get('/students'),
+        api.get('/academic/class-batches'),
+        api.get('/academic/departments'),
+        api.get('/academic/academic-years'),
+      ]);
+      setStudents(s.data);
+      setBatches(b.data);
+      setDepartments(d.data);
+      setYears(y.data);
+    } catch (e) {
+      console.error('Failed to load students data', e);
+    }
   };
 
   useEffect(() => {
@@ -88,7 +102,7 @@ export default function ManageStudents() {
 
     try {
       await api.post('/students', form);
-      toast.success('Student added');
+      toast.success('Student enrolled successfully');
       setForm({
         name: '',
         rollNo: '',
@@ -162,10 +176,26 @@ export default function ManageStudents() {
     }
   };
 
+  const filteredStudents = useMemo(() => {
+    return students.filter((s) => {
+      const classLabel = getClassLabel(s);
+      if (classFilter !== 'all' && classLabel !== classFilter) return false;
+      if (!searchQuery.trim()) return true;
+      const q = searchQuery.toLowerCase();
+      return (
+        s.name?.toLowerCase().includes(q) ||
+        s.rollNo?.toLowerCase().includes(q) ||
+        s.email?.toLowerCase().includes(q) ||
+        s.classBatch?.name?.toLowerCase().includes(q) ||
+        s.department?.name?.toLowerCase().includes(q)
+      );
+    });
+  }, [students, searchQuery, classFilter]);
+
   const groupedStudents = useMemo(() => {
     const departmentMap = {};
 
-    students.forEach((student) => {
+    filteredStudents.forEach((student) => {
       const departmentName = student.department?.name || 'Unassigned';
       const classLabel = getClassLabel(student);
 
@@ -191,198 +221,317 @@ export default function ManageStudents() {
             students: list.sort((a, b) => a.name.localeCompare(b.name)),
           })),
       }));
-  }, [students]);
+  }, [filteredStudents]);
 
   return (
     <div className="space-y-6">
-      <div className="rounded-[30px] border border-indigo-200/80 bg-gradient-to-r from-indigo-100 via-violet-100 to-white p-5 text-slate-900 shadow-[0_18px_36px_rgba(79,70,229,0.08)] sm:p-6">
+      {/* Hero Banner */}
+      <div className="hero-banner">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-indigo-600">Student operations</p>
-            <h1 className="mt-2 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">Manage Students</h1>
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-bold uppercase tracking-widest text-indigo-100 backdrop-blur-md">
+              <GraduationCap className="h-3.5 w-3.5" /> Student Directory
+            </div>
+            <h1 className="mt-3 text-2xl font-extrabold tracking-tight text-white sm:text-3xl">
+              Student Records & Enrollment
+            </h1>
+            <p className="mt-1 text-sm text-indigo-100/90">
+              Manage cohort admissions, departmental distributions, and spreadsheet roster imports.
+            </p>
           </div>
-          <div className="inline-flex items-center gap-2 self-start rounded-full border border-slate-200 bg-white/80 px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm">
-            <span className="h-2 w-2 rounded-full bg-emerald-500" />
-            Student intake active
+          <div className="inline-flex items-center gap-2 self-start rounded-full border border-white/20 bg-white/10 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm backdrop-blur-md">
+            <Users className="h-4 w-4 text-emerald-300" />
+            <span>{students.length} Students Active</span>
           </div>
         </div>
       </div>
 
-      <Card title="Add Student">
-        <form onSubmit={handleSubmit} className="grid md:grid-cols-3 gap-3">
-          <div>
-            <Input placeholder="Full Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} error={errors.name} />
-            {errors.name && <p className="mt-1 text-xs text-red-500">{errors.name}</p>}
-          </div>
-          <div>
-            <Input placeholder="Roll No" value={form.rollNo} onChange={(e) => setForm({ ...form, rollNo: e.target.value })} error={errors.rollNo} />
-            {errors.rollNo && <p className="mt-1 text-xs text-red-500">{errors.rollNo}</p>}
-          </div>
-          <div>
-            <Input type="email" placeholder="Email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} error={errors.email} />
-            {errors.email && <p className="mt-1 text-xs text-red-500">{errors.email}</p>}
-          </div>
-          <div>
-            <Input type="password" placeholder="Password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} error={errors.password} />
-            {errors.password && <p className="mt-1 text-xs text-red-500">{errors.password}</p>}
-          </div>
-          <div>
-            <Input type="email" placeholder="Parent Email (optional)" value={form.parentEmail} onChange={(e) => setForm({ ...form, parentEmail: e.target.value })} error={errors.parentEmail} />
-            {errors.parentEmail && <p className="mt-1 text-xs text-red-500">{errors.parentEmail}</p>}
-          </div>
-          <div>
-            <Select value={form.gender} onChange={(e) => setForm({ ...form, gender: e.target.value })} error={errors.gender}>
-              <option value="Male">Male</option>
-              <option value="Female">Female</option>
-              <option value="Other">Other</option>
-              <option value="Prefer not to say">Prefer not to say</option>
-            </Select>
-            {errors.gender && <p className="mt-1 text-xs text-red-500">{errors.gender}</p>}
-          </div>
-          <div>
-            <Select value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })} error={errors.department}>
-              <option value="">Select Department</option>
-              {departments.map((d) => (
-                <option key={d._id} value={d._id}>{d.name}</option>
-              ))}
-            </Select>
-            {errors.department && <p className="mt-1 text-xs text-red-500">{errors.department}</p>}
-          </div>
-          <div>
-            <Select value={form.classBatch} onChange={(e) => setForm({ ...form, classBatch: e.target.value })} error={errors.classBatch}>
-              <option value="">Select Class Batch</option>
-              {batches.map((b) => (
-                <option key={b._id} value={b._id}>{b.name}</option>
-              ))}
-            </Select>
-            {errors.classBatch && <p className="mt-1 text-xs text-red-500">{errors.classBatch}</p>}
-          </div>
-          <div>
-            <Select
-              value={form.academicYearJoined}
-              onChange={(e) => setForm({ ...form, academicYearJoined: e.target.value, currentAcademicYear: e.target.value })}
-              error={errors.academicYearJoined || errors.currentAcademicYear}
-            >
-              <option value="">Select Academic Year (joined / current)</option>
-              {years.map((y) => (
-                <option key={y._id} value={y._id}>{y.label}</option>
-              ))}
-            </Select>
-            {(errors.academicYearJoined || errors.currentAcademicYear) && (
-              <p className="mt-1 text-xs text-red-500">{errors.academicYearJoined || errors.currentAcademicYear}</p>
-            )}
-          </div>
-          <div className="md:col-span-3">
-            <Button type="submit">+ Add Student</Button>
-          </div>
-        </form>
-      </Card>
-
-      <Card title="Bulk Import from Excel / CSV">
-        <p className="mb-3 text-sm text-slate-600">
-          Add an entire class in one go instead of one by one. Download the template, fill in your
-          students, and upload it back here. Rows with missing passwords get a random one
-          auto-generated - the results below will show it so you can share it with each student.
-        </p>
-        <div className="flex flex-wrap items-center gap-3">
-          <Button variant="outline" onClick={handleDownloadTemplate} type="button" className="inline-flex items-center gap-2">
-            <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4"><path d="M12 3.5a1 1 0 0 1 1 1V12l2.3-2.3a1 1 0 1 1 1.4 1.4l-4 4a1 1 0 0 1-1.4 0l-4-4a1 1 0 1 1 1.4-1.4L11 12V4.5a1 1 0 0 1 1-1Zm-7 12a1 1 0 0 1 1 1v1.5h12V16.5a1 1 0 1 1 2 0v2.5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-2.5a1 1 0 0 1 1-1Z" fill="currentColor"/></svg>
-            Download Template
-          </Button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".xlsx,.xls,.csv"
-            onChange={handleFileImport}
-            disabled={importing}
-            className="text-sm"
-          />
-          {importing && <span className="text-sm text-gray-500">Importing...</span>}
-        </div>
-
-        {importResult && (
-          <div className="mt-4">
-            <div className="flex gap-2 mb-2">
-              <Badge color="green">{importResult.created} created</Badge>
-              {importResult.failed > 0 && <Badge color="red">{importResult.failed} failed</Badge>}
-            </div>
-            <div className="max-h-64 overflow-y-auto border border-gray-100 rounded-lg">
-              <Table
-                columns={[
-                  { key: 'row', header: 'Row' },
-                  { key: 'rollNo', header: 'Roll No' },
-                  { key: 'name', header: 'Name' },
-                  {
-                    key: 'status',
-                    header: 'Status',
-                    render: (r) => <Badge color={r.status === 'created' ? 'green' : 'red'}>{r.status}</Badge>,
-                  },
-                  { key: 'message', header: 'Details' },
-                ]}
-                data={importResult.rows}
+      {/* Add Student & Bulk Import Grid */}
+      <div className="grid gap-6 lg:grid-cols-[1.3fr_0.7fr]">
+        <Card title="Enroll Individual Student" subtitle="Create new student record with credentials">
+          <form onSubmit={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+            <div>
+              <Input
+                placeholder="Full Name"
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                error={errors.name}
               />
+              {errors.name && <p className="mt-1 text-xs text-rose-500">{errors.name}</p>}
+            </div>
+            <div>
+              <Input
+                placeholder="Roll Number"
+                value={form.rollNo}
+                onChange={(e) => setForm({ ...form, rollNo: e.target.value })}
+                error={errors.rollNo}
+              />
+              {errors.rollNo && <p className="mt-1 text-xs text-rose-500">{errors.rollNo}</p>}
+            </div>
+            <div>
+              <Input
+                type="email"
+                placeholder="Student Email"
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                error={errors.email}
+              />
+              {errors.email && <p className="mt-1 text-xs text-rose-500">{errors.email}</p>}
+            </div>
+            <div>
+              <Input
+                type="password"
+                placeholder="Initial Password"
+                value={form.password}
+                onChange={(e) => setForm({ ...form, password: e.target.value })}
+                error={errors.password}
+              />
+              {errors.password && <p className="mt-1 text-xs text-rose-500">{errors.password}</p>}
+            </div>
+            <div>
+              <Input
+                type="email"
+                placeholder="Parent Email (optional)"
+                value={form.parentEmail}
+                onChange={(e) => setForm({ ...form, parentEmail: e.target.value })}
+                error={errors.parentEmail}
+              />
+              {errors.parentEmail && <p className="mt-1 text-xs text-rose-500">{errors.parentEmail}</p>}
+            </div>
+            <div>
+              <Select
+                value={form.gender}
+                onChange={(e) => setForm({ ...form, gender: e.target.value })}
+                error={errors.gender}
+              >
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Other">Other</option>
+                <option value="Prefer not to say">Prefer not to say</option>
+              </Select>
+              {errors.gender && <p className="mt-1 text-xs text-rose-500">{errors.gender}</p>}
+            </div>
+            <div>
+              <Select
+                value={form.department}
+                onChange={(e) => setForm({ ...form, department: e.target.value })}
+                error={errors.department}
+              >
+                <option value="">Select Department</option>
+                {departments.map((d) => (
+                  <option key={d._id} value={d._id}>{d.name}</option>
+                ))}
+              </Select>
+              {errors.department && <p className="mt-1 text-xs text-rose-500">{errors.department}</p>}
+            </div>
+            <div>
+              <Select
+                value={form.classBatch}
+                onChange={(e) => setForm({ ...form, classBatch: e.target.value })}
+                error={errors.classBatch}
+              >
+                <option value="">Select Class Batch</option>
+                {batches.map((b) => (
+                  <option key={b._id} value={b._id}>{b.name}</option>
+                ))}
+              </Select>
+              {errors.classBatch && <p className="mt-1 text-xs text-rose-500">{errors.classBatch}</p>}
+            </div>
+            <div>
+              <Select
+                value={form.academicYearJoined}
+                onChange={(e) =>
+                  setForm({ ...form, academicYearJoined: e.target.value, currentAcademicYear: e.target.value })
+                }
+                error={errors.academicYearJoined || errors.currentAcademicYear}
+              >
+                <option value="">Academic Year</option>
+                {years.map((y) => (
+                  <option key={y._id} value={y._id}>{y.label}</option>
+                ))}
+              </Select>
+              {(errors.academicYearJoined || errors.currentAcademicYear) && (
+                <p className="mt-1 text-xs text-rose-500">{errors.academicYearJoined || errors.currentAcademicYear}</p>
+              )}
+            </div>
+            <div className="sm:col-span-2 md:col-span-3">
+              <Button type="submit" icon={Plus} className="w-full sm:w-auto">
+                Add Student
+              </Button>
+            </div>
+          </form>
+        </Card>
+
+        {/* Bulk Import Card */}
+        <Card title="Spreadsheet Ingestion" subtitle="Bulk upload student cohorts via XLSX/CSV">
+          <p className="text-xs text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">
+            Download our standard Excel format, paste roll numbers and names, and upload here. Passwords are auto-generated if left blank.
+          </p>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <Button
+              variant="outline"
+              size="sm"
+              icon={Download}
+              onClick={handleDownloadTemplate}
+            >
+              Template
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              onChange={handleFileImport}
+              disabled={importing}
+              className="hidden"
+              id="student-file-input"
+            />
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={Upload}
+              loading={importing}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              {importing ? 'Uploading...' : 'Upload Excel'}
+            </Button>
+          </div>
+
+          {importResult && (
+            <div className="mt-4 border-t border-slate-100 pt-3 dark:border-slate-800">
+              <div className="flex gap-2 mb-2">
+                <Badge color="green" dot>{importResult.created} created</Badge>
+                {importResult.failed > 0 && <Badge color="red" dot>{importResult.failed} failed</Badge>}
+              </div>
+              <div className="max-h-48 overflow-y-auto">
+                <Table
+                  columns={[
+                    { key: 'row', header: 'Row' },
+                    { key: 'rollNo', header: 'Roll No' },
+                    { key: 'name', header: 'Name' },
+                    {
+                      key: 'status',
+                      header: 'Status',
+                      render: (r) => (
+                        <Badge color={r.status === 'created' ? 'green' : 'red'}>
+                          {r.status}
+                        </Badge>
+                      ),
+                    },
+                    { key: 'message', header: 'Details' },
+                  ]}
+                  data={importResult.rows || []}
+                />
+              </div>
+            </div>
+          )}
+        </Card>
+      </div>
+
+      {/* Cohort Explorer Card with Search and Class Filter Pills */}
+      <Card
+        title={`All Enrolled Students (${filteredStudents.length})`}
+        subtitle="Grouped by academic department and cohort year"
+        actions={
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* Quick Filter Pills */}
+            <div className="flex items-center gap-1 rounded-xl border border-slate-200/90 bg-slate-50 p-1 dark:border-slate-800 dark:bg-slate-800/60">
+              {['all', 'FE', 'SE', 'TE', 'BE'].map((lvl) => (
+                <button
+                  key={lvl}
+                  type="button"
+                  onClick={() => setClassFilter(lvl)}
+                  className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
+                    classFilter === lvl
+                      ? 'bg-brand-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                  }`}
+                >
+                  {lvl === 'all' ? 'All' : lvl}
+                </button>
+              ))}
+            </div>
+
+            <div className="relative w-52 sm:w-64">
+              <Input
+                placeholder="Search by name, roll no..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="!py-1.5 !text-xs !pl-8"
+              />
+              <Search className="pointer-events-none absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
             </div>
           </div>
-        )}
-      </Card>
-
-      <Card title={`All Students (${students.length})`}>
-        <div className="space-y-5">
-          {groupedStudents.map(({ departmentName, classGroups }) => (
-            <div key={departmentName} className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3 sm:p-4">
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Department</p>
-                  <h3 className="mt-1 text-lg font-bold text-slate-900">{departmentName}</h3>
-                </div>
-                <Badge color="indigo">
-                  {classGroups.reduce((total, group) => total + group.students.length, 0)} students
-                </Badge>
-              </div>
-
-              <div className="space-y-4">
-                {classGroups.map(({ classLabel, students: groupedStudentsList }) => (
-                  <div key={`${departmentName}-${classLabel}`} className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-                    <div className="mb-3 flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-2">
-                        <span className="rounded-full bg-brand-50 px-2.5 py-1 text-xs font-semibold text-brand-700">
-                          {classLabel}
-                        </span>
-                        <span className="text-sm text-slate-500">{groupedStudentsList.length} students</span>
-                      </div>
+        }
+      >
+        <div className="space-y-6">
+          {groupedStudents.length === 0 ? (
+            <div className="py-10 text-center text-sm text-slate-500 dark:text-slate-400">
+              No students found matching your criteria.
+            </div>
+          ) : (
+            groupedStudents.map(({ departmentName, classGroups }) => (
+              <div
+                key={departmentName}
+                className="rounded-3xl border border-slate-200/80 bg-slate-50/70 p-4 sm:p-5 dark:border-slate-800 dark:bg-slate-800/30"
+              >
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/80 pb-3 dark:border-slate-700/80">
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300">
+                      <Building2 className="h-4 w-4" />
                     </div>
-
-                    <div className="overflow-x-auto rounded-xl border border-slate-200 bg-slate-50/60">
-                      <table className="min-w-full text-sm">
-                        <thead>
-                          <tr className="border-b border-slate-200 bg-white/70 text-left text-slate-600">
-                            <th className="py-3 pr-4 font-semibold">Roll No</th>
-                            <th className="py-3 pr-4 font-semibold">Name</th>
-                            <th className="py-3 pr-4 font-semibold">Email</th>
-                            <th className="py-3 pr-4 font-semibold">Class</th>
-                            <th className="py-3 pr-4 font-semibold">Status</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {groupedStudentsList.map((student) => (
-                            <tr key={student._id} className="border-b border-slate-100 bg-white/60 last:border-0 hover:bg-slate-50/80">
-                              <td className="py-2.5 pr-4 font-medium text-slate-700">{student.rollNo}</td>
-                              <td className="py-2.5 pr-4 text-slate-700">{student.name}</td>
-                              <td className="py-2.5 pr-4 text-slate-600">{student.email}</td>
-                              <td className="py-2.5 pr-4 text-slate-700">{student.classBatch?.name || 'N/A'}</td>
-                              <td className="py-2.5 pr-4">
-                                <Badge color={student.status === 'active' ? 'green' : 'gray'}>{student.status || 'active'}</Badge>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                    <div>
+                      <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                        {departmentName}
+                      </h3>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">Department Roster</p>
                     </div>
                   </div>
-                ))}
+                  <Badge color="indigo">
+                    {classGroups.reduce((total, group) => total + group.students.length, 0)} enrolled
+                  </Badge>
+                </div>
+
+                <div className="space-y-5">
+                  {classGroups.map(({ classLabel, students: list }) => (
+                    <div
+                      key={`${departmentName}-${classLabel}`}
+                      className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/80"
+                    >
+                      <div className="mb-3 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Badge color="blue">{classLabel} Cohort</Badge>
+                          <span className="text-xs text-slate-500">{list.length} students</span>
+                        </div>
+                      </div>
+
+                      <Table
+                        columns={[
+                          { key: 'rollNo', header: 'Roll No' },
+                          { key: 'name', header: 'Full Name' },
+                          { key: 'email', header: 'Email' },
+                          {
+                            key: 'classBatch',
+                            header: 'Batch',
+                            render: (r) => r.classBatch?.name || 'Unassigned',
+                          },
+                          {
+                            key: 'status',
+                            header: 'Status',
+                            render: (r) => (
+                              <Badge color={r.status === 'active' ? 'green' : 'gray'} dot>
+                                {r.status || 'active'}
+                              </Badge>
+                            ),
+                          },
+                        ]}
+                        data={list}
+                      />
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
+            ))
+          )}
         </div>
       </Card>
     </div>

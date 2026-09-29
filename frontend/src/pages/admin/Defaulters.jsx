@@ -2,16 +2,30 @@ import React, { useEffect, useState } from 'react';
 import api from '../../api/client';
 import { Card, Button, Table, Badge } from '../../components/ui';
 import toast from 'react-hot-toast';
+import {
+  AlertTriangle,
+  FileSpreadsheet,
+  FileText,
+  Bell,
+  RefreshCw,
+} from 'lucide-react';
 
 export default function Defaulters() {
   const [defaulters, setDefaulters] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
+  const [notifying, setNotifying] = useState(false);
 
   const load = async () => {
     setLoading(true);
-    const { data } = await api.get('/reports/defaulters');
-    setDefaulters(data);
-    setLoading(false);
+    try {
+      const { data } = await api.get('/reports/defaulters');
+      setDefaulters(data);
+    } catch (e) {
+      toast.error('Failed to load defaulters list');
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -19,70 +33,132 @@ export default function Defaulters() {
   }, []);
 
   const runNotifications = async () => {
+    setNotifying(true);
     try {
       await api.post('/reports/run-notifications');
-      toast.success('Defaulter check + notifications triggered');
+      toast.success('Defaulter check triggered and parent notifications queued');
     } catch (e) {
-      toast.error('Failed to trigger notifications');
+      toast.error('Failed to trigger notification dispatch');
+    } finally {
+      setNotifying(false);
     }
   };
 
-  const exportFile = (type) => {
-    const token = localStorage.getItem('token');
-    const url = `${import.meta.env.VITE_API_URL}/export/defaulters/${type}`;
-    fetch(url, { headers: { Authorization: `Bearer ${token}` } })
-      .then((res) => res.blob())
-      .then((blob) => {
-        const link = document.createElement('a');
-        link.href = window.URL.createObjectURL(blob);
-        link.download = `defaulters.${type === 'excel' ? 'xlsx' : 'pdf'}`;
-        link.click();
-      });
+  const exportFile = async (type) => {
+    setExporting(true);
+    try {
+      const res = await api.get(`/export/defaulters/${type}`, { responseType: 'blob' });
+      const blob = new Blob([res.data]);
+      const link = document.createElement('a');
+      link.href = window.URL.createObjectURL(blob);
+      link.download = `defaulters_report_${new Date().toISOString().slice(0, 10)}.${type === 'excel' ? 'xlsx' : 'pdf'}`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      toast.success(`Exported ${type.toUpperCase()} report successfully`);
+    } catch (err) {
+      toast.error(`Failed to export ${type.toUpperCase()} report`);
+    } finally {
+      setExporting(false);
+    }
   };
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-bold text-gray-800">Defaulter Management</h1>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="secondary" onClick={() => exportFile('excel')} className="inline-flex items-center gap-2">
-            <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4"><path d="M12 3.5a1 1 0 0 1 1 1V12l2.3-2.3a1 1 0 1 1 1.4 1.4l-4 4a1 1 0 0 1-1.4 0l-4-4a1 1 0 1 1 1.4-1.4L11 12V4.5a1 1 0 0 1 1-1Zm-7 12a1 1 0 0 1 1 1v1.5h12V16.5a1 1 0 1 1 2 0v2.5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-2.5a1 1 0 0 1 1-1Z" fill="currentColor"/></svg>
-            Excel
-          </Button>
-          <Button variant="secondary" onClick={() => exportFile('pdf')} className="inline-flex items-center gap-2">
-            <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4"><path d="M12 3.5a1 1 0 0 1 1 1V12l2.3-2.3a1 1 0 1 1 1.4 1.4l-4 4a1 1 0 0 1-1.4 0l-4-4a1 1 0 1 1 1.4-1.4L11 12V4.5a1 1 0 0 1 1-1Zm-7 12a1 1 0 0 1 1 1v1.5h12V16.5a1 1 0 1 1 2 0v2.5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-2.5a1 1 0 0 1 1-1Z" fill="currentColor"/></svg>
-            PDF
-          </Button>
-          <Button onClick={runNotifications} className="inline-flex items-center gap-2">
-            <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4"><path d="M4 13.5A3.5 3.5 0 0 1 7.5 10H9V8.5A3 3 0 0 1 12 5.5a3 3 0 0 1 3 3V10h1.5A3.5 3.5 0 0 1 20 13.5v2.25a1.25 1.25 0 0 1-1.25 1.25H5.25A1.25 1.25 0 0 1 4 15.75v-2.25Zm8 5.5a2.5 2.5 0 0 1-2.45-2h4.9A2.5 2.5 0 0 1 12 19Z" fill="currentColor"/></svg>
-            Run Notification Check Now
-          </Button>
+    <div className="space-y-6">
+      {/* Hero Banner */}
+      <div className="hero-banner">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-bold uppercase tracking-widest text-indigo-100 backdrop-blur-md">
+              <AlertTriangle className="h-3.5 w-3.5 text-amber-300" /> Attendance Monitoring
+            </div>
+            <h1 className="mt-3 text-2xl font-extrabold tracking-tight text-white sm:text-3xl">
+              Defaulter Analytics & Action Center
+            </h1>
+            <p className="mt-1 text-sm text-indigo-100/90">
+              Identify students below mandated course attendance thresholds and trigger immediate notices.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <Button
+              variant="outline"
+              icon={FileSpreadsheet}
+              loading={exporting}
+              onClick={() => exportFile('excel')}
+              className="!border-white/30 !bg-white/10 !text-white hover:!bg-white/20"
+            >
+              Excel Report
+            </Button>
+            <Button
+              variant="outline"
+              icon={FileText}
+              loading={exporting}
+              onClick={() => exportFile('pdf')}
+              className="!border-white/30 !bg-white/10 !text-white hover:!bg-white/20"
+            >
+              PDF Report
+            </Button>
+            <Button
+              icon={Bell}
+              loading={notifying}
+              onClick={runNotifications}
+              className="shadow-lg"
+            >
+              Trigger Notices Now
+            </Button>
+          </div>
         </div>
       </div>
 
-      <Card title={`Defaulters (below threshold): ${defaulters.length}`}>
-        {loading ? (
-          <p className="text-gray-500 text-sm">Loading...</p>
-        ) : (
-          <Table
-            columns={[
-              { key: 'rollNo', header: 'Roll No' },
-              { key: 'studentName', header: 'Student' },
-              { key: 'courseName', header: 'Course' },
-              { key: 'type', header: 'Type', render: (r) => <Badge color={r.type === 'practical' ? 'blue' : r.type === 'project' ? 'purple' : 'gray'}>{r.type}</Badge> },
-              { key: 'attendedHours', header: 'Attended Hrs' },
-              { key: 'totalHeldHours', header: 'Total Held Hrs' },
-              {
-                key: 'attendancePercent',
-                header: 'Attendance %',
-                render: (r) => <Badge color="red">{r.attendancePercent}%</Badge>,
-              },
-              { key: 'threshold', header: 'Required %' },
-            ]}
-            data={defaulters}
-            emptyText="No defaulters currently"
-          />
-        )}
+      <Card
+        title={`Identified Defaulters (${defaulters.length} course breaches)`}
+        subtitle="Students failing to reach the mandatory minimum attendance percentage"
+        actions={
+          <Button
+            variant="ghost"
+            size="sm"
+            icon={RefreshCw}
+            loading={loading}
+            onClick={load}
+          >
+            Refresh Data
+          </Button>
+        }
+      >
+        <Table
+          columns={[
+            { key: 'rollNo', header: 'Roll No' },
+            { key: 'studentName', header: 'Student Name' },
+            { key: 'courseName', header: 'Course / Subject' },
+            {
+              key: 'type',
+              header: 'Course Type',
+              render: (r) => (
+                <Badge color={r.type === 'practical' ? 'blue' : r.type === 'project' ? 'purple' : 'gray'} dot>
+                  {r.type}
+                </Badge>
+              ),
+            },
+            { key: 'attendedHours', header: 'Attended (Hrs)', render: (r) => `${r.attendedHours}h` },
+            { key: 'totalHeldHours', header: 'Held (Hrs)', render: (r) => `${r.totalHeldHours}h` },
+            {
+              key: 'attendancePercent',
+              header: 'Current %',
+              render: (r) => (
+                <Badge color={r.attendancePercent < 50 ? 'red' : 'yellow'} dot>
+                  {r.attendancePercent}%
+                </Badge>
+              ),
+            },
+            {
+              key: 'threshold',
+              header: 'Mandated %',
+              render: (r) => `${r.threshold || 75}%`,
+            },
+          ]}
+          data={defaulters}
+          emptyText="Great news! No students currently fall below attendance thresholds."
+        />
       </Card>
     </div>
   );

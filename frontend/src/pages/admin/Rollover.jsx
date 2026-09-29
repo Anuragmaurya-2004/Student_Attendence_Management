@@ -3,6 +3,14 @@ import api from '../../api/client';
 import { Card, Button, Select } from '../../components/ui';
 import toast from 'react-hot-toast';
 import { validateRolloverForm } from '../../validators';
+import {
+  RefreshCw,
+  Plus,
+  Trash2,
+  ArrowRight,
+  CheckCircle2,
+  AlertCircle,
+} from 'lucide-react';
 
 export default function Rollover() {
   const [years, setYears] = useState([]);
@@ -12,11 +20,19 @@ export default function Rollover() {
   const [graduating, setGraduating] = useState([]);
   const [summary, setSummary] = useState(null);
   const [errors, setErrors] = useState({ toYear: '', mappings: '' });
+  const [submitting, setSubmitting] = useState(false);
 
   const load = async () => {
-    const [y, b] = await Promise.all([api.get('/academic/academic-years'), api.get('/academic/class-batches')]);
-    setYears(y.data);
-    setBatches(b.data);
+    try {
+      const [y, b] = await Promise.all([
+        api.get('/academic/academic-years'),
+        api.get('/academic/class-batches'),
+      ]);
+      setYears(y.data);
+      setBatches(b.data);
+    } catch (e) {
+      console.error('Failed to load rollover metadata', e);
+    }
   };
 
   useEffect(() => {
@@ -52,6 +68,7 @@ export default function Rollover() {
     }
 
     const validMappings = mappings.filter((m) => m.fromClassBatch && m.toClassBatch);
+    setSubmitting(true);
     try {
       const { data } = await api.post('/rollover/promote', {
         toAcademicYear: toYear,
@@ -59,24 +76,47 @@ export default function Rollover() {
         graduatingClassBatches: graduating,
       });
       setSummary(data.summary);
-      toast.success('Rollover completed!');
+      toast.success('Academic rollover executed successfully!');
       load();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Rollover failed');
+      toast.error(err.response?.data?.message || 'Rollover process failed');
+    } finally {
+      setSubmitting(false);
     }
   };
 
   return (
-    <div>
-      <h1 className="text-xl font-bold text-gray-800 mb-4">Academic Year Rollover</h1>
-      <Card title="Promote Students to New Academic Year">
-        <p className="text-sm text-gray-500 mb-4">
-          Moves active students from their current class batch into a new class batch under the target academic year.
-          Their attendance history and past records are preserved (never deleted) and remain viewable under the old year.
-        </p>
-        <form onSubmit={handleSubmit} className="space-y-4">
+    <div className="space-y-6">
+      {/* Hero Banner */}
+      <div className="hero-banner">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Target (New) Academic Year</label>
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-bold uppercase tracking-widest text-indigo-100 backdrop-blur-md">
+              <RefreshCw className="h-3.5 w-3.5" /> Lifecycle Automation
+            </div>
+            <h1 className="mt-3 text-2xl font-extrabold tracking-tight text-white sm:text-3xl">
+              Academic Year Rollover
+            </h1>
+            <p className="mt-1 text-sm text-indigo-100/90">
+              Promote student cohorts into their next academic year batches while preserving full historical attendance logs.
+            </p>
+          </div>
+          <div className="inline-flex items-center gap-2 self-start rounded-full border border-white/20 bg-white/10 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm backdrop-blur-md">
+            <CheckCircle2 className="h-4 w-4 text-emerald-300" />
+            <span>Non-Destructive Rollover</span>
+          </div>
+        </div>
+      </div>
+
+      <Card
+        title="Promote Cohorts to Target Academic Year"
+        subtitle="Specify batch promotion mappings and mark senior graduating divisions"
+      >
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div>
+            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+              Target (New) Academic Year
+            </label>
             <Select
               value={toYear}
               onChange={(e) => {
@@ -84,73 +124,136 @@ export default function Rollover() {
                 if (errors.toYear) setErrors((prev) => ({ ...prev, toYear: '' }));
               }}
               error={errors.toYear}
+              className="max-w-md"
             >
-              <option value="">Select academic year</option>
+              <option value="">Select target academic year</option>
               {years.map((y) => (
                 <option key={y._id} value={y._id}>{y.label}</option>
               ))}
             </Select>
-            {errors.toYear && <p className="mt-1 text-xs text-red-500">{errors.toYear}</p>}
+            {errors.toYear && <p className="mt-1.5 text-xs text-rose-500">{errors.toYear}</p>}
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Class Batch Mappings (From → To)</label>
-            {mappings.map((m, idx) => (
-              <div key={idx} className="grid grid-cols-5 gap-2 mb-2 items-center">
-                <div className="col-span-2">
-                  <Select value={m.fromClassBatch} onChange={(e) => updateMapping(idx, 'fromClassBatch', e.target.value)}>
-                    <option value="">From class batch</option>
-                    {batches.map((b) => (
-                      <option key={b._id} value={b._id}>{b.name} ({b.academicYear?.label})</option>
-                    ))}
-                  </Select>
+            <div className="mb-2 flex items-center justify-between">
+              <label className="text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                Class Batch Mappings (Source → Destination)
+              </label>
+              <Button type="button" variant="outline" size="sm" icon={Plus} onClick={addMappingRow}>
+                Add Mapping Row
+              </Button>
+            </div>
+
+            <div className="space-y-2.5">
+              {mappings.map((m, idx) => (
+                <div
+                  key={idx}
+                  className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 rounded-2xl border border-slate-200/80 bg-slate-50/70 p-2.5 dark:border-slate-800 dark:bg-slate-800/40"
+                >
+                  <div className="flex-1">
+                    <Select
+                      value={m.fromClassBatch}
+                      onChange={(e) => updateMapping(idx, 'fromClassBatch', e.target.value)}
+                    >
+                      <option value="">Current class batch</option>
+                      {batches.map((b) => (
+                        <option key={b._id} value={b._id}>
+                          {b.name} ({b.academicYear?.label})
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+
+                  <div className="hidden sm:flex items-center justify-center text-slate-400">
+                    <ArrowRight className="h-4 w-4" />
+                  </div>
+
+                  <div className="flex-1">
+                    <Select
+                      value={m.toClassBatch}
+                      onChange={(e) => updateMapping(idx, 'toClassBatch', e.target.value)}
+                    >
+                      <option value="">Promoted class batch</option>
+                      {batches.map((b) => (
+                        <option key={b._id} value={b._id}>
+                          {b.name} ({b.academicYear?.label})
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+
+                  {mappings.length > 1 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      icon={Trash2}
+                      onClick={() => removeMapping(idx)}
+                      className="!text-rose-500 hover:!bg-rose-50 dark:hover:!bg-rose-950/40"
+                      aria-label="Remove mapping"
+                    />
+                  )}
                 </div>
-                <div className="text-center text-gray-400">→</div>
-                <div className="col-span-2 flex gap-2">
-                  <Select value={m.toClassBatch} onChange={(e) => updateMapping(idx, 'toClassBatch', e.target.value)}>
-                    <option value="">To class batch</option>
-                    {batches.map((b) => (
-                      <option key={b._id} value={b._id}>{b.name} ({b.academicYear?.label})</option>
-                    ))}
-                  </Select>
-                  <Button type="button" variant="danger" className="!py-1 !px-2 text-xs" onClick={() => removeMapping(idx)} aria-label="Remove mapping">
-                    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-3.5 w-3.5"><path d="m7.05 7.05 9.9 9.9a1 1 0 0 1-1.41 1.41L5.64 8.46A1 1 0 0 1 7.05 7.05Zm9.9 0L7.05 16.95a1 1 0 0 0 1.41 1.41l9.9-9.9A1 1 0 0 0 16.95 7.05Z" fill="currentColor"/></svg>
-                  </Button>
-                </div>
-              </div>
-            ))}
-            <Button type="button" variant="secondary" onClick={addMappingRow}>+ Add Mapping</Button>
-            {errors.mappings && <p className="mt-1 text-xs text-red-500">{errors.mappings}</p>}
+              ))}
+            </div>
+            {errors.mappings && (
+              <p className="mt-2 flex items-center gap-1.5 text-xs text-rose-500">
+                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                <span>{errors.mappings}</span>
+              </p>
+            )}
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Graduating Batches (students become "passed out", not promoted)
+            <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+              Graduating Cohorts (Students marked "Passed Out" instead of promoted)
             </label>
-            <div className="flex flex-wrap gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
               {batches.map((b) => (
-                <label key={b._id} className="flex items-center gap-1.5 text-sm bg-gray-50 px-2 py-1 rounded border">
-                  <input type="checkbox" checked={graduating.includes(b._id)} onChange={() => toggleGraduating(b._id)} />
-                  {b.name} ({b.academicYear?.label})
+                <label
+                  key={b._id}
+                  className="flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white p-2.5 text-xs font-medium text-slate-700 shadow-sm cursor-pointer hover:bg-brand-50/50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+                >
+                  <input
+                    type="checkbox"
+                    checked={graduating.includes(b._id)}
+                    onChange={() => toggleGraduating(b._id)}
+                    className="rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+                  />
+                  <span>{b.name} <span className="text-slate-400">({b.academicYear?.label})</span></span>
                 </label>
               ))}
             </div>
           </div>
 
-          <Button type="submit" className="inline-flex items-center gap-2">
-            <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4"><path d="M12 3.5a7.5 7.5 0 0 1 7.08 11.18l1.66 1.66a1 1 0 0 1-1.42 1.41l-1.66-1.66A7.5 7.5 0 1 1 12 3.5Zm0 2a5.5 5.5 0 1 0 4.97 8.38 1 1 0 0 1 .12-1.3 5.5 5.5 0 0 0-5.09-7.08Zm.5 2.25v3.28l2.61 1.6a1 1 0 1 1-1.1 1.7l-3.16-1.95a1 1 0 0 1-.46-.8V7.75a1 1 0 1 1 2 0Z" fill="currentColor"/></svg>
-            Run Rollover
-          </Button>
+          <div className="border-t border-slate-100 pt-4 dark:border-slate-800">
+            <Button
+              type="submit"
+              icon={RefreshCw}
+              loading={submitting}
+              className="py-3 px-6 shadow-md"
+            >
+              Execute Year Rollover
+            </Button>
+          </div>
         </form>
 
         {summary && (
-          <div className="mt-5 bg-green-50 border border-green-200 rounded-lg p-4 text-sm">
-            <p className="font-medium text-green-800 mb-2">Rollover Summary</p>
-            <p>Promoted: {summary.promoted} students</p>
-            <p>Graduated: {summary.graduated} students</p>
-            <ul className="mt-2 list-disc list-inside text-gray-600">
-              {summary.details.map((d, i) => (
-                <li key={i}>{d.count} students moved from batch {d.fromClassBatch} → {d.toClassBatch}</li>
+          <div className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50/80 p-5 dark:border-emerald-900/60 dark:bg-emerald-950/40 text-sm">
+            <p className="font-bold text-emerald-800 dark:text-emerald-300 mb-2 flex items-center gap-2">
+              <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+              Rollover Completed Successfully
+            </p>
+            <div className="flex gap-4 text-xs font-semibold text-emerald-700 dark:text-emerald-300 mb-3">
+              <span>Promoted Students: {summary.promoted}</span>
+              <span>•</span>
+              <span>Graduated Seniors: {summary.graduated}</span>
+            </div>
+            <ul className="space-y-1 list-disc list-inside text-xs text-slate-600 dark:text-slate-400">
+              {summary.details?.map((d, i) => (
+                <li key={i}>
+                  {d.count} students transitioned into new cohort
+                </li>
               ))}
             </ul>
           </div>

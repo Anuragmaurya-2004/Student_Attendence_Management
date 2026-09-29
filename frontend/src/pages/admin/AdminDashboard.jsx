@@ -1,41 +1,54 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import api from '../../api/client';
-import { Card, Badge } from '../../components/ui';
+import { Card, Badge, Table, CircularProgressRing } from '../../components/ui';
+import { SkeletonCard, SkeletonTable } from '../../components/Skeleton';
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  Cell,
+} from 'recharts';
+import {
+  Building2,
+  Users,
+  GraduationCap,
+  BookOpen,
+  Activity,
+  CheckCircle2,
+  TrendingUp,
+} from 'lucide-react';
 
 const statMeta = {
-  departments: { label: 'Departments', tone: 'bg-indigo-50 text-indigo-700 ring-indigo-100' },
-  students: { label: 'Students', tone: 'bg-emerald-50 text-emerald-700 ring-emerald-100' },
-  faculty: { label: 'Faculty', tone: 'bg-sky-50 text-sky-700 ring-sky-100' },
-  courses: { label: 'Courses', tone: 'bg-violet-50 text-violet-700 ring-violet-100' },
-};
-
-const statIcons = {
-  departments: (
-    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5">
-      <path d="M4 9.5 12 4l8 5.5v8A1.5 1.5 0 0 1 18.5 19H5.5A1.5 1.5 0 0 1 4 17.5v-8Zm8 2.8 6.5-4.5v5.2L12 16.5 5.5 13.1v-5.2L12 12.3Z" fill="currentColor"/>
-    </svg>
-  ),
-  students: (
-    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5">
-      <path d="M12 12a3.25 3.25 0 1 0-3.25-3.25A3.25 3.25 0 0 0 12 12Zm-6.5 7a5.5 5.5 0 0 1 11 0v.5H5.5v-.5Zm14.5-6.5a2.75 2.75 0 1 0-2.75-2.75A2.75 2.75 0 0 0 20 12.5Zm-1.2 7.5h1.7v-.45a4 4 0 0 0-3.15-3.86l-.94.84a5.42 5.42 0 0 1 2.39 3.47Z" fill="currentColor"/>
-    </svg>
-  ),
-  faculty: (
-    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5">
-      <path d="M12 4.5a3.25 3.25 0 1 1-3.25 3.25A3.25 3.25 0 0 1 12 4.5Zm-5.5 11a4.5 4.5 0 0 1 9 0v1.25H6.5V15.5Zm13.25-3.5a2.75 2.75 0 1 0-2.75-2.75A2.75 2.75 0 0 0 19.75 12Zm-1.2 8.5h2.95v-1.1a4 4 0 0 0-3.15-3.86l-.8.84a5.06 5.06 0 0 1 1.2 4.12Z" fill="currentColor"/>
-    </svg>
-  ),
-  courses: (
-    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5">
-      <path d="M6 4.5A2.5 2.5 0 0 0 3.5 7v10A2.5 2.5 0 0 0 6 19.5h10.5A2.5 2.5 0 0 0 19 17V7a2.5 2.5 0 0 0-2.5-2.5H6Zm1.5 3h7v1.5h-7V7.5Zm0 3h9v1.5h-9V10.5Zm0 3h7v1.5h-7v-1.5Z" fill="currentColor"/>
-    </svg>
-  ),
+  departments: {
+    label: 'Departments',
+    icon: Building2,
+    tone: 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border-indigo-200/80 dark:border-indigo-800/60',
+  },
+  students: {
+    label: 'Enrolled Students',
+    icon: GraduationCap,
+    tone: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-200/80 dark:border-emerald-800/60',
+  },
+  faculty: {
+    label: 'Active Faculty',
+    icon: Users,
+    tone: 'bg-sky-50 text-sky-700 dark:bg-sky-950/60 dark:text-sky-300 border-sky-200/80 dark:border-sky-800/60',
+  },
+  courses: {
+    label: 'Total Courses',
+    icon: BookOpen,
+    tone: 'bg-purple-50 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300 border-purple-200/80 dark:border-purple-800/60',
+  },
 };
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState(null);
   const [defaulters, setDefaulters] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [defaulterFilter, setDefaulterFilter] = useState('all'); // 'all', 'critical', 'theory', 'practical'
 
   useEffect(() => {
     (async () => {
@@ -55,20 +68,12 @@ export default function AdminDashboard() {
         });
         setDefaulters(defaultersRes.data);
       } catch (e) {
-        console.error(e);
+        console.error('Failed to load dashboard data', e);
       } finally {
         setLoading(false);
       }
     })();
   }, []);
-
-  if (loading) {
-    return (
-      <div className="flex min-h-[220px] items-center justify-center rounded-3xl border border-slate-200 bg-white/80 text-sm font-medium text-slate-500 shadow-soft">
-        Loading dashboard...
-      </div>
-    );
-  }
 
   const cards = Object.entries(statMeta).map(([key, meta]) => ({
     key,
@@ -76,122 +81,231 @@ export default function AdminDashboard() {
     value: stats?.[key] ?? 0,
   }));
 
+  // Calculate distinct defaulter students for accurate health percentage
+  const uniqueDefaulterStudents = useMemo(() => {
+    return new Set(defaulters.map((d) => d.rollNo || d.studentName)).size;
+  }, [defaulters]);
+
   const healthScore = stats?.students
-    ? Math.max(0, Math.min(100, 100 - (defaulters.length / stats.students) * 100))
+    ? Math.max(0, Math.min(100, Math.round(100 - (uniqueDefaulterStudents / stats.students) * 100)))
     : 100;
 
-  const priorityAlerts = [...defaulters].sort((a, b) => a.attendancePercent - b.attendancePercent).slice(0, 4);
+  // Breakdown metrics for visualization
+  const attendanceDistributionData = useMemo(() => {
+    const totalStudents = stats?.students || 0;
+    const criticalCount = defaulters.filter((d) => d.attendancePercent < 60).length;
+    const warningCount = defaulters.filter((d) => d.attendancePercent >= 60 && d.attendancePercent < 75).length;
+    const compliantCount = Math.max(0, totalStudents - uniqueDefaulterStudents);
+
+    return [
+      { category: 'Compliant (>=75%)', count: compliantCount, fill: '#10b981' },
+      { category: 'Watchlist (60-74%)', count: warningCount, fill: '#f59e0b' },
+      { category: 'Critical (<60%)', count: criticalCount, fill: '#f43f5e' },
+    ];
+  }, [stats, defaulters, uniqueDefaulterStudents]);
+
+  const priorityAlerts = useMemo(() => {
+    return [...defaulters]
+      .sort((a, b) => a.attendancePercent - b.attendancePercent)
+      .slice(0, 4);
+  }, [defaulters]);
+
+  const filteredDefaulters = useMemo(() => {
+    if (defaulterFilter === 'critical') return defaulters.filter((d) => d.attendancePercent < 60);
+    if (defaulterFilter === 'theory') return defaulters.filter((d) => d.type === 'theory');
+    if (defaulterFilter === 'practical') return defaulters.filter((d) => d.type === 'practical');
+    return defaulters;
+  }, [defaulters, defaulterFilter]);
 
   return (
     <div className="space-y-6">
-      <div className="rounded-[30px] border border-indigo-200/80 bg-gradient-to-r from-indigo-100 via-violet-100 to-white p-5 text-slate-900 shadow-[0_18px_36px_rgba(79,70,229,0.08)] sm:p-6">
+      {/* Hero Welcome Banner */}
+      <div className="hero-banner">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-indigo-600">Campus overview</p>
-            <h1 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl text-slate-900">Admin Dashboard</h1>
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-bold uppercase tracking-widest text-indigo-100 backdrop-blur-md">
+              <Activity className="h-3.5 w-3.5" /> Campus Executive Center
+            </div>
+            <h1 className="mt-3 text-2xl font-extrabold tracking-tight text-white sm:text-3xl">
+              Administrator Dashboard
+            </h1>
+            <p className="mt-1 text-sm text-indigo-100/90">
+              Live attendance health, departmental metrics, and early defaulter intervention.
+            </p>
           </div>
 
-          <div className="inline-flex items-center gap-2 self-start rounded-full border border-slate-200 bg-white/80 px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm">
-            <span className="h-2 w-2 rounded-full bg-emerald-500" />
-            Live updates active
+          <div className="inline-flex items-center gap-2 self-start rounded-full border border-white/20 bg-white/10 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm backdrop-blur-md">
+            <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span>Telemetry Synced</span>
           </div>
         </div>
 
-        <div className="mt-5 grid gap-3 md:grid-cols-3">
-          <div className="rounded-2xl border border-slate-200 bg-white/75 p-3 shadow-sm">
-            <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Active records</p>
-            <p className="mt-2 text-2xl font-bold text-slate-900">{stats?.students ?? 0}</p>
-            <p className="text-sm text-slate-500">students registered</p>
+        <div className="mt-6 grid gap-3 sm:grid-cols-3">
+          <div className="rounded-2xl border border-white/15 bg-white/10 p-3.5 backdrop-blur-md">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-indigo-100">Enrolled Students</p>
+            <p className="mt-1.5 text-2xl font-extrabold text-white">{stats?.students ?? 0}</p>
+            <p className="text-xs text-indigo-200">Across all departments</p>
           </div>
-          <div className="rounded-2xl border border-slate-200 bg-white/75 p-3 shadow-sm">
-            <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Faculty coverage</p>
-            <p className="mt-2 text-2xl font-bold text-slate-900">{stats?.faculty ?? 0}</p>
-            <p className="text-sm text-slate-500">faculty members</p>
+          <div className="rounded-2xl border border-white/15 bg-white/10 p-3.5 backdrop-blur-md">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-indigo-100">Faculty Roster</p>
+            <p className="mt-1.5 text-2xl font-extrabold text-white">{stats?.faculty ?? 0}</p>
+            <p className="text-xs text-indigo-200">Educators & instructors</p>
           </div>
-          <div className="rounded-2xl border border-slate-200 bg-white/75 p-3 shadow-sm">
-            <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Defaulter alerts</p>
-            <p className="mt-2 text-2xl font-bold text-slate-900">{defaulters.length}</p>
-            <p className="text-sm text-slate-500">students below threshold</p>
+          <div className="rounded-2xl border border-white/15 bg-white/10 p-3.5 backdrop-blur-md">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-indigo-100">Course Defaulters</p>
+            <p className="mt-1.5 text-2xl font-extrabold text-white">{defaulters.length}</p>
+            <p className="text-xs text-indigo-200">Total course alerts</p>
           </div>
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {cards.map((card) => (
-          <div key={card.key} className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_10px_24px_rgba(15,23,42,0.04)] ring-1 ring-slate-100">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-sm font-medium text-slate-600">{card.label}</p>
-                <p className="mt-3 text-3xl font-bold leading-none text-slate-900">{card.value}</p>
-              </div>
-              <div className={`flex h-11 w-11 items-center justify-center rounded-xl bg-white shadow-sm ring-1 ring-slate-200 ${card.tone}`}>
-                {statIcons[card.key]}
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
-        <Card title="Campus health">
-          <div className="space-y-5">
-            <div className="flex items-end justify-between gap-3">
-              <div>
-                <p className="text-sm text-slate-500">Overall attendance health</p>
-                <p className="mt-1 text-4xl font-bold text-slate-900">{Math.round(healthScore)}%</p>
-              </div>
-              <Badge color={healthScore >= 80 ? 'green' : healthScore >= 65 ? 'yellow' : 'red'}>
-                {healthScore >= 80 ? 'Healthy' : healthScore >= 65 ? 'Watchlist' : 'Critical'}
-              </Badge>
-            </div>
-
-            <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-200">
+      {/* 4 Stat Cards with Skeletons */}
+      {loading ? (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </div>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {cards.map((card, idx) => {
+            const Icon = card.icon;
+            const staggerClass = idx === 0 ? 'animate-stagger-1' : idx === 1 ? 'animate-stagger-2' : idx === 2 ? 'animate-stagger-3' : 'animate-stagger-4';
+            return (
               <div
-                className={`h-full rounded-full ${healthScore >= 80 ? 'bg-emerald-500' : healthScore >= 65 ? 'bg-amber-500' : 'bg-red-500'}`}
-                style={{ width: `${healthScore}%` }}
-              />
-            </div>
+                key={card.key}
+                className={`rounded-3xl border border-slate-200/90 bg-white/95 p-5 shadow-[0_10px_30px_rgba(15,23,42,0.03)] transition-all hover:-translate-y-0.5 hover:shadow-md dark:border-slate-800/90 dark:bg-slate-900/90 ${staggerClass}`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                      {card.label}
+                    </p>
+                    <p className="mt-2 text-3xl font-extrabold text-slate-900 dark:text-white">
+                      {card.value}
+                    </p>
+                  </div>
+                  <div className={`flex h-11 w-11 items-center justify-center rounded-2xl border shadow-sm ${card.tone}`}>
+                    <Icon className="h-5 w-5" />
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
-            <div className="grid gap-4 sm:grid-cols-3">
-              <div className="rounded-2xl border border-indigo-100 bg-indigo-50/70 p-3">
-                <p className="text-[11px] uppercase tracking-[0.18em] text-brand-600">Students</p>
-                <p className="mt-2 text-2xl font-bold text-slate-900">{stats?.students ?? 0}</p>
+      {/* Health Metric & Priority Alerts Grid */}
+      <div className="grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
+        <Card title="Campus Attendance Health" subtitle="Overall student presence across ongoing academic batches">
+          {loading ? (
+            <div className="h-60 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800" />
+          ) : (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <CircularProgressRing value={healthScore} size={68} strokeWidth={6} />
+                  <div>
+                    <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Cumulative Compliance</p>
+                    <div className="mt-0.5 flex items-baseline gap-2">
+                      <span className="text-3xl font-black tracking-tight text-slate-900 dark:text-white tnum">
+                        {healthScore}%
+                      </span>
+                      <span className="text-xs text-slate-500">campus average</span>
+                    </div>
+                  </div>
+                </div>
+                <Badge
+                  color={healthScore >= 80 ? 'green' : healthScore >= 65 ? 'yellow' : 'red'}
+                  dot
+                >
+                  {healthScore >= 80 ? 'Optimal Status' : healthScore >= 65 ? 'Watchlist' : 'Critical Action'}
+                </Badge>
               </div>
-              <div className="rounded-2xl border border-sky-100 bg-sky-50/70 p-3">
-                <p className="text-[11px] uppercase tracking-[0.18em] text-sky-700">Faculty</p>
-                <p className="mt-2 text-2xl font-bold text-slate-900">{stats?.faculty ?? 0}</p>
+
+              {/* Health Progress Track */}
+              <div className="h-3 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+                <div
+                  className={`h-full rounded-full transition-all duration-500 ${
+                    healthScore >= 80 ? 'bg-emerald-500' : healthScore >= 65 ? 'bg-amber-500' : 'bg-rose-500'
+                  }`}
+                  style={{ width: `${healthScore}%` }}
+                />
               </div>
-              <div className="rounded-2xl border border-violet-100 bg-violet-50/70 p-3">
-                <p className="text-[11px] uppercase tracking-[0.18em] text-violet-700">Courses</p>
-                <p className="mt-2 text-2xl font-bold text-slate-900">{stats?.courses ?? 0}</p>
+
+              {/* Attendance Distribution Chart */}
+              <div className="rounded-2xl border border-slate-100 bg-slate-50/60 p-4 dark:border-slate-800 dark:bg-slate-800/30">
+                <div className="flex items-center gap-2 mb-2 text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                  <TrendingUp className="h-3.5 w-3.5 text-brand-600" /> Cohort Distribution Overview
+                </div>
+                <div className="h-36 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={attendanceDistributionData} layout="vertical" margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+                      <XAxis type="number" tick={{ fontSize: 10, fill: '#64748b' }} />
+                      <YAxis dataKey="category" type="category" width={115} tick={{ fontSize: 10, fill: '#64748b' }} />
+                      <Tooltip
+                        content={({ active, payload }) => {
+                          if (!active || !payload?.length) return null;
+                          const d = payload[0].payload;
+                          return (
+                            <div className="rounded-lg border border-slate-200 bg-white p-2 text-xs shadow-md dark:border-slate-700 dark:bg-slate-900">
+                              <span className="font-semibold text-slate-900 dark:text-white">{d.category}:</span> {d.count} records
+                            </div>
+                          );
+                        }}
+                      />
+                      <Bar dataKey="count" radius={[0, 6, 6, 0]}>
+                        {attendanceDistributionData.map((entry, idx) => (
+                          <Cell key={`cell-${idx}`} fill={entry.fill} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </Card>
 
-        <Card title="Priority alerts">
-          {priorityAlerts.length === 0 ? (
-            <div className="flex items-center gap-2 text-sm text-slate-500">
-              <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 text-emerald-600">
-                <path d="M9.55 16.2 5.3 12l1.4-1.4 2.85 2.85 7.75-7.75 1.4 1.4-9.15 9.15Z" fill="currentColor"/>
-              </svg>
-              <span>No urgent alerts right now.</span>
+        {/* Priority Alerts Card */}
+        <Card title="Immediate Priority Alerts" subtitle="Lowest attendance requiring intervention">
+          {loading ? (
+            <div className="space-y-3">
+              <div className="h-16 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800" />
+              <div className="h-16 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800" />
+            </div>
+          ) : priorityAlerts.length === 0 ? (
+            <div className="flex flex-col items-center justify-center gap-2 py-8 text-center text-slate-500 dark:text-slate-400">
+              <CheckCircle2 className="h-8 w-8 text-emerald-500" />
+              <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">No urgent alerts</p>
+              <p className="text-xs">All enrolled students currently meet the required attendance quota.</p>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3">
               {priorityAlerts.map((student, index) => (
-                <div key={`${student.studentName}-${index}`} className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3">
+                <div
+                  key={`${student.rollNo || student.studentName}-${index}`}
+                  className="rounded-2xl border border-rose-100 bg-rose-50/50 p-3.5 dark:border-rose-900/40 dark:bg-rose-950/20"
+                >
                   <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="font-semibold text-slate-800">{student.studentName}</p>
-                      <p className="text-xs text-slate-500">{student.courseName}</p>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-bold text-slate-900 dark:text-white">
+                        {student.studentName}
+                      </p>
+                      <p className="truncate text-xs text-slate-500 dark:text-slate-400">
+                        {student.courseName} • Roll {student.rollNo}
+                      </p>
                     </div>
-                    <span className="inline-flex rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-700">
+                    <Badge color="red" dot>
                       {student.attendancePercent}%
-                    </span>
+                    </Badge>
                   </div>
-                  <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-slate-200">
-                    <div className="h-full rounded-full bg-red-500" style={{ width: `${Math.max(12, student.attendancePercent)}%` }} />
+                  <div className="mt-2.5 h-1.5 w-full overflow-hidden rounded-full bg-rose-200/60 dark:bg-rose-950/80">
+                    <div
+                      className="h-full rounded-full bg-rose-500"
+                      style={{ width: `${Math.max(10, student.attendancePercent)}%` }}
+                    />
                   </div>
                 </div>
               ))}
@@ -200,46 +314,67 @@ export default function AdminDashboard() {
         </Card>
       </div>
 
-      <Card title={`Current Defaulters (${defaulters.length})`}>
-        {defaulters.length === 0 ? (
-          <div className="flex items-center gap-2 text-sm text-slate-500">
-            <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 text-emerald-600">
-              <path d="M9.55 16.2 5.3 12l1.4-1.4 2.85 2.85 7.75-7.75 1.4 1.4-9.15 9.15Z" fill="currentColor"/>
-            </svg>
-            <span>No defaulters currently. Everyone is meeting attendance requirements.</span>
+      {/* Defaulters Full List Table with Quick Filter Pills */}
+      <Card
+        title={`All Current Course Defaulters (${defaulters.length})`}
+        subtitle="Students falling below their mandatory course threshold"
+        action={
+          <div className="flex flex-wrap items-center gap-1.5">
+            {[
+              { key: 'all', label: `All (${defaulters.length})` },
+              { key: 'critical', label: 'Critical (<60%)' },
+              { key: 'theory', label: 'Theory' },
+              { key: 'practical', label: 'Practicals' },
+            ].map((pill) => (
+              <button
+                key={pill.key}
+                type="button"
+                onClick={() => setDefaulterFilter(pill.key)}
+                className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
+                  defaulterFilter === pill.key
+                    ? 'bg-brand-600 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
+                }`}
+              >
+                {pill.label}
+              </button>
+            ))}
           </div>
+        }
+      >
+        {loading ? (
+          <SkeletonTable rows={5} cols={5} />
         ) : (
-          <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white/60">
-            <table className="min-w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-left text-slate-600">
-                  <th className="py-3 pr-4 font-semibold">Roll No</th>
-                  <th className="py-3 pr-4 font-semibold">Student</th>
-                  <th className="py-3 pr-4 font-semibold">Course</th>
-                  <th className="py-3 pr-4 font-semibold">Type</th>
-                  <th className="py-3 pr-4 font-semibold">Attendance</th>
-                </tr>
-              </thead>
-              <tbody>
-                {defaulters.map((d, i) => (
-                  <tr key={i} className="border-b border-slate-100 bg-white/60 last:border-0">
-                    <td className="py-3 pr-4 font-medium text-slate-700">{d.rollNo}</td>
-                    <td className="py-3 pr-4 text-slate-700">{d.studentName}</td>
-                    <td className="py-3 pr-4 text-slate-700">{d.courseName}</td>
-                    <td className="py-3 pr-4">
-                      <Badge color={d.type === 'practical' ? 'blue' : d.type === 'project' ? 'purple' : 'gray'}>{d.type}</Badge>
-                    </td>
-                    <td className="py-3 pr-4">
-                      <span className="mr-2 inline-flex rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-700">
-                        {d.attendancePercent}%
-                      </span>
-                      <span className="text-slate-400">/ min {d.threshold}%</span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <Table
+            columns={[
+              { key: 'rollNo', header: 'Roll No' },
+              { key: 'studentName', header: 'Student Name' },
+              { key: 'courseName', header: 'Course / Subject' },
+              {
+                key: 'type',
+                header: 'Type',
+                render: (r) => (
+                  <Badge color={r.type === 'practical' ? 'blue' : r.type === 'project' ? 'purple' : 'gray'}>
+                    {r.type}
+                  </Badge>
+                ),
+              },
+              {
+                key: 'attendancePercent',
+                header: 'Attendance %',
+                render: (r) => (
+                  <div className="flex items-center gap-2">
+                    <Badge color="red" dot>{r.attendancePercent}%</Badge>
+                    <span className="text-xs text-slate-400 dark:text-slate-500">
+                      (min {r.threshold || 75}%)
+                    </span>
+                  </div>
+                ),
+              },
+            ]}
+            data={filteredDefaulters}
+            emptyText="No defaulters found for the selected filter."
+          />
         )}
       </Card>
     </div>

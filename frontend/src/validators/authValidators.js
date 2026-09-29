@@ -192,11 +192,6 @@ export const onDutySchema = Joi.object({
   fromDate: Joi.string().required().messages({ 'string.empty': 'From date is required.' }),
   toDate: Joi.string().required().messages({ 'string.empty': 'To date is required.' }),
   remarks: Joi.string().trim().allow('').optional(),
-}).custom((value, helpers) => {
-  if (value.fromDate && value.toDate && new Date(value.toDate) < new Date(value.fromDate)) {
-    return helpers.message('To date cannot be earlier than from date.');
-  }
-  return value;
 });
 
 export const rolloverSchema = Joi.object({
@@ -208,21 +203,6 @@ export const rolloverSchema = Joi.object({
     })
   ).optional(),
   graduating: Joi.array().items(Joi.string()).optional(),
-}).custom((value, helpers) => {
-  const validMappings = (value.mappings || []).filter((m) => m.fromClassBatch && m.toClassBatch);
-  const hasIncompleteMapping = (value.mappings || []).some(
-    (m) => (m.fromClassBatch && !m.toClassBatch) || (!m.fromClassBatch && m.toClassBatch)
-  );
-
-  if (hasIncompleteMapping) {
-    return helpers.message('Each mapping must include both the source and target class batch.');
-  }
-
-  if (validMappings.length === 0 && (!value.graduating || value.graduating.length === 0)) {
-    return helpers.message('Add at least one class mapping or choose one graduating batch.');
-  }
-
-  return value;
 });
 
 export const validateLoginForm = (data) => {
@@ -312,10 +292,30 @@ export const validateCourseForm = (data) => {
 
 export const validateOnDutyForm = (data) => {
   const { error } = onDutySchema.validate(data, { abortEarly: false });
-  return createErrorMap(error);
+  const fieldErrors = createErrorMap(error);
+
+  if (!fieldErrors.toDate && data.fromDate && data.toDate && new Date(data.toDate) < new Date(data.fromDate)) {
+    fieldErrors.toDate = 'To date cannot be earlier than from date.';
+  }
+
+  return fieldErrors;
 };
 
 export const validateRolloverForm = (data) => {
   const { error } = rolloverSchema.validate(data, { abortEarly: false });
-  return createErrorMap(error);
+  const fieldErrors = createErrorMap(error);
+
+  const validMappings = (data.mappings || []).filter((m) => m.fromClassBatch && m.toClassBatch);
+  const hasIncompleteMapping = (data.mappings || []).some(
+    (m) => (m.fromClassBatch && !m.toClassBatch) || (!m.fromClassBatch && m.toClassBatch)
+  );
+
+  if (hasIncompleteMapping) {
+    fieldErrors.mappings = 'Each mapping must include both the source and target class batch.';
+  } else if (validMappings.length === 0 && (!data.graduating || data.graduating.length === 0)) {
+    fieldErrors.mappings = 'Add at least one class mapping or choose one graduating batch.';
+  }
+
+  return fieldErrors;
 };
+

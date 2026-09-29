@@ -1,13 +1,16 @@
 import React from 'react';
 import Input from './Input';
+import { AlertCircle } from 'lucide-react';
 
 export default function TextInput({
   label,
-  value = '',
-  onChangeText = () => {},
-  onChange = () => {},
+  value,
+  defaultValue,
+  onChangeText,
+  onChange,
   placeholder = '',
   error = '',
+  helperText = '',
   leadingIcon = null,
   trailingIcon = null,
   containerStyle = {},
@@ -17,25 +20,41 @@ export default function TextInput({
 }) {
   return (
     <div style={containerStyle} className="w-full">
-      {label && <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>}
-      <div
-        className={`flex items-center gap-2 rounded-lg border bg-white transition ${
-          error ? 'border-red-400 ring-2 ring-red-100' : 'border-gray-300 focus-within:ring-2 focus-within:ring-brand-500'
-        }`}
-      >
-        {leadingIcon && <div className="flex items-center justify-center pl-3">{leadingIcon}</div>}
+      {label && (
+        <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+          {label}
+        </label>
+      )}
+      <div className="relative flex items-center">
+        {leadingIcon && (
+          <div className="pointer-events-none absolute left-3 flex items-center justify-center text-slate-400 dark:text-slate-500">
+            {leadingIcon}
+          </div>
+        )}
         <Input
           {...props}
           value={value}
+          defaultValue={defaultValue}
           onChangeText={onChangeText}
           onChange={onChange}
           placeholder={placeholder}
-          className={`border-0 focus:ring-0 rounded-none shadow-none bg-transparent ${inputStyle} ${className}`}
           error={error}
+          className={`${leadingIcon ? '!pl-10' : ''} ${trailingIcon ? '!pr-10' : ''} ${inputStyle} ${className}`}
         />
-        {trailingIcon && <div className="flex items-center justify-center pr-3">{trailingIcon}</div>}
+        {trailingIcon && (
+          <div className="absolute right-3 flex items-center justify-center text-slate-400 dark:text-slate-500">
+            {trailingIcon}
+          </div>
+        )}
       </div>
-      {error && <p className="mt-1 text-xs text-red-500">{error}</p>}
+      {error ? (
+        <p className="mt-1.5 flex items-center gap-1 text-xs font-medium text-rose-500 dark:text-rose-400">
+          <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+          <span>{error}</span>
+        </p>
+      ) : helperText ? (
+        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{helperText}</p>
+      ) : null}
     </div>
   );
 }
