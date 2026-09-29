@@ -1,27 +1,49 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme, setTheme } from '../theme';
+import {
+  LayoutDashboard,
+  Settings,
+  Users,
+  GraduationCap,
+  Calendar,
+  AlertTriangle,
+  RefreshCw,
+  Award,
+  QrCode,
+  KeyRound,
+  LogOut,
+  Sun,
+  Moon,
+  Menu,
+  X,
+  BookOpen,
+  CheckCircle2,
+} from 'lucide-react';
 
 const linksByRole = {
   admin: [
-    { to: '/admin', label: 'Dashboard' },
-    { to: '/admin/setup', label: 'Academic Setup' },
-    { to: '/admin/students', label: 'Students' },
-    { to: '/admin/faculty', label: 'Faculty' },
-    { to: '/admin/onduty', label: 'On-Duty & Visits' },
-    { to: '/admin/holidays', label: 'Holidays' },
-    { to: '/admin/defaulters', label: 'Defaulters' },
-    { to: '/admin/rollover', label: 'Year Rollover' },
+    { to: '/admin', label: 'Dashboard', icon: LayoutDashboard },
+    { to: '/admin/setup', label: 'Academic Setup', icon: Settings },
+    { to: '/admin/students', label: 'Students', icon: GraduationCap },
+    { to: '/admin/faculty', label: 'Faculty', icon: Users },
+    { to: '/admin/onduty', label: 'On-Duty & Visits', icon: Award },
+    { to: '/admin/holidays', label: 'Holidays', icon: Calendar },
+    { to: '/admin/defaulters', label: 'Defaulters', icon: AlertTriangle },
+    { to: '/admin/rollover', label: 'Year Rollover', icon: RefreshCw },
+    { to: '/faculty/change-password', label: 'Change Password', icon: KeyRound },
   ],
   faculty: [
-    { to: '/faculty', label: 'My Sessions' },
-    { to: '/faculty/onduty', label: 'On-Duty & Visits' },
-    { to: '/faculty/defaulters', label: 'Defaulters' },
+    { to: '/faculty', label: 'My Sessions', icon: BookOpen },
+    { to: '/faculty/onduty', label: 'On-Duty & Visits', icon: Award },
+    { to: '/faculty/defaulters', label: 'Defaulters', icon: AlertTriangle },
+    { to: '/faculty/change-password', label: 'Change Password', icon: KeyRound },
   ],
   student: [
-    { to: '/student', label: 'My Attendance' },
-    { to: '/student/scan', label: 'Scan QR' },
+    { to: '/student', label: 'My Attendance', icon: CheckCircle2 },
+    { to: '/student/scan', label: 'Scan QR', icon: QrCode },
+    { to: '/student/change-password', label: 'Change Password', icon: KeyRound },
   ],
 };
 
@@ -30,173 +52,234 @@ export default function Layout() {
   const navigate = useNavigate();
   const links = user ? linksByRole[user.role] || [] : [];
   const darkMode = useTheme();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const applyTheme = (isDark) => {
     setTheme(isDark);
   };
 
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
+
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 transition-colors duration-200 dark:bg-slate-950 dark:text-slate-100">
-      <div className="mx-auto flex min-h-screen max-w-[1800px] flex-col lg:flex-row">
+    <div className="min-h-screen bg-slate-50 text-slate-900 transition-colors duration-250 dark:bg-slate-950 dark:text-slate-100">
+      <div className="mx-auto flex min-h-screen max-w-[1920px] flex-col lg:flex-row">
         {user && (
-          <aside className="hidden w-72 shrink-0 border-r border-slate-200 bg-white text-slate-800 lg:flex lg:flex-col dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100">
-            <div className="flex items-center gap-3 border-b border-slate-200 bg-slate-50 p-5 dark:border-slate-700 dark:bg-slate-900/80">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-brand-100 text-brand-700 ring-1 ring-brand-200 shadow-sm dark:bg-slate-800 dark:text-brand-100 dark:ring-slate-700">
-                <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5">
-                  <path d="M8 4.75A1.75 1.75 0 0 1 9.75 3h8.5A1.75 1.75 0 0 1 20 4.75v10.5A1.75 1.75 0 0 1 18.25 17h-8.5A1.75 1.75 0 0 1 8 15.25V4.75ZM4 7.5A2.5 2.5 0 0 1 6.5 5H7v10.5A3.5 3.5 0 0 0 10.5 19H18v.5A1.5 1.5 0 0 1 16.5 21h-8A2.5 2.5 0 0 1 6 18.5V7.5H4Zm5.5 2.75h5.5a.75.75 0 0 0 0-1.5h-5.5a.75.75 0 0 0 0 1.5Zm0 4.5h7a.75.75 0 0 0 0-1.5h-7a.75.75 0 0 0 0 1.5Z" fill="currentColor"/>
-                </svg>
+          <aside className="hidden w-72 shrink-0 border-r border-slate-200/90 bg-white/95 text-slate-800 lg:flex lg:flex-col dark:border-slate-800/80 dark:bg-slate-900/90 dark:text-slate-100">
+            {/* Campus Brand Header */}
+            <div className="flex items-center gap-3 border-b border-slate-200/80 bg-slate-50/50 p-5 dark:border-slate-800 dark:bg-slate-900/50">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-600 to-indigo-600 text-white shadow-md shadow-brand-500/20">
+                <GraduationCap className="h-6 w-6" />
               </div>
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">Campus portal</p>
-                <h2 className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">Attendance</h2>
+              <div className="min-w-0">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-brand-600 dark:text-brand-400">
+                  Campus Portal
+                </span>
+                <h2 className="text-lg font-bold tracking-tight text-slate-900 dark:text-white">
+                  Attendance Pro
+                </h2>
               </div>
             </div>
 
-            <div className="px-4 pb-3 pt-4">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 shadow-sm dark:border-slate-700 dark:bg-slate-900/80">
+            {/* User Profile Card */}
+            <div className="p-4">
+              <div className="rounded-2xl border border-slate-200/80 bg-slate-50/80 p-3.5 shadow-sm dark:border-slate-800 dark:bg-slate-800/40">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-100 text-sm font-semibold text-brand-700 ring-1 ring-brand-200 dark:bg-brand-500/20 dark:text-brand-100 dark:ring-brand-500/30">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-100 font-bold text-brand-700 shadow-inner dark:bg-brand-900/50 dark:text-brand-300">
                     {user.name?.charAt(0)?.toUpperCase() || 'U'}
                   </div>
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">{user.name}</p>
-                    <p className="text-xs capitalize text-slate-500 dark:text-slate-300">{user.role}</p>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">
+                      {user.name}
+                    </p>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <span className="h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-emerald-500/20" />
+                      <span className="truncate text-xs font-medium capitalize text-slate-500 dark:text-slate-400">
+                        {user.role}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
 
-            <nav className="flex-1 space-y-1 px-3 pb-4 pt-2">
-              {links.map((l) => (
-                <NavLink
-                  key={l.to}
-                  to={l.to}
-                  end
-                  className={({ isActive }) =>
-                    `flex items-center rounded-2xl px-3 py-3 text-sm font-medium transition ${
-                      isActive
-                        ? 'bg-brand-50 text-brand-700 shadow-sm ring-1 ring-brand-100 dark:bg-slate-800 dark:text-brand-100 dark:ring-slate-700'
-                        : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-white'
-                    }`
-                  }
-                >
-                  {l.label}
-                </NavLink>
-              ))}
+            {/* Sidebar Navigation */}
+            <nav className="flex-1 space-y-1.5 overflow-y-auto px-3 py-2">
+              {links.map((l) => {
+                const Icon = l.icon;
+                return (
+                  <NavLink
+                    key={l.to}
+                    to={l.to}
+                    end={l.to === '/admin' || l.to === '/faculty' || l.to === '/student'}
+                    className={({ isActive }) =>
+                      `flex items-center gap-3 rounded-2xl px-3.5 py-2.5 text-sm font-medium transition-all ${
+                        isActive
+                          ? 'bg-brand-500/10 font-semibold text-brand-600 shadow-sm ring-1 ring-brand-500/20 dark:bg-brand-500/15 dark:text-brand-300 dark:ring-brand-500/30'
+                          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800/60 dark:hover:text-slate-100'
+                      }`
+                    }
+                  >
+                    <Icon className="h-4 w-4 shrink-0" />
+                    <span>{l.label}</span>
+                  </NavLink>
+                );
+              })}
             </nav>
 
-            <div className="border-t border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900/80">
+            {/* Sidebar Footer Controls */}
+            <div className="border-t border-slate-200/80 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-900/50 space-y-2">
               <button
                 type="button"
                 onClick={() => applyTheme(!darkMode)}
-                className="mb-3 flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
+                className="flex w-full items-center justify-between rounded-xl border border-slate-200/90 bg-white px-3.5 py-2.5 text-xs font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700/80"
               >
-                {darkMode ? (
-                  <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4"><path d="M12 2.75a1 1 0 0 1 1 1V5a1 1 0 1 1-2 0v-1.25a1 1 0 0 1 1-1Zm0 16.5a1 1 0 0 1 1 1V19a1 1 0 1 1-2 0v.25a1 1 0 0 1 1-1Zm7.25-7.25a1 1 0 0 1 0 2h-1.25a1 1 0 1 1 0-2h1.25Zm-16.5 0a1 1 0 0 1 0 2H1.5a1 1 0 1 1 0-2h1.25ZM17.3 5.7a1 1 0 0 1 1.41 0l.88.88a1 1 0 0 1-1.41 1.41l-.88-.88a1 1 0 0 1 0-1.41Zm-12.6 12.6a1 1 0 0 1 1.41 0l.88.88a1 1 0 1 1-1.41 1.41l-.88-.88a1 1 0 0 1 0-1.41ZM17.3 18.3a1 1 0 0 1 0-1.41l.88-.88a1 1 0 0 1 1.41 1.41l-.88.88a1 1 0 0 1-1.41 0Zm-12.6-12.6a1 1 0 0 1 0-1.41l.88-.88A1 1 0 0 1 6.99 5.7l-.88.88a1 1 0 0 1-1.41 0ZM12 7.25A4.75 4.75 0 1 1 7.25 12 4.75 4.75 0 0 1 12 7.25Z" fill="currentColor"/></svg>
-                ) : (
-                  <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4"><path d="M20.2 15.18A8.5 8.5 0 0 1 8.82 3.8a8.5 8.5 0 1 0 11.38 11.38Z" fill="currentColor"/></svg>
-                )}
-                <span>{darkMode ? 'Light mode' : 'Dark mode'}</span>
+                <span className="flex items-center gap-2">
+                  {darkMode ? <Sun className="h-4 w-4 text-amber-400" /> : <Moon className="h-4 w-4 text-indigo-500" />}
+                  <span>{darkMode ? 'Light Mode' : 'Dark Mode'}</span>
+                </span>
+                <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] uppercase font-semibold text-slate-500 dark:bg-slate-700 dark:text-slate-400">
+                  {darkMode ? 'Dark' : 'Light'}
+                </span>
               </button>
+
               <button
                 type="button"
-                onClick={() => {
-                  logout();
-                  navigate('/login');
-                }}
-                className="flex w-full items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
+                onClick={handleLogout}
+                className="flex w-full items-center justify-center gap-2 rounded-xl border border-rose-200/80 bg-rose-50/50 px-3.5 py-2 text-xs font-semibold text-rose-600 transition hover:bg-rose-100/70 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-400 dark:hover:bg-rose-950/60"
               >
-                Logout
+                <LogOut className="h-3.5 w-3.5" />
+                <span>Log Out</span>
               </button>
             </div>
           </aside>
         )}
 
+        {/* Main Content Shell */}
         <div className="flex min-h-screen flex-1 flex-col">
-          <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/90 text-slate-900 shadow-[0_10px_30px_rgba(15,23,42,0.04)] backdrop-blur-sm dark:border-slate-700 dark:bg-slate-950/90 dark:text-slate-100">
-            <div className="page-shell py-3 sm:py-4">
-              <div className="flex items-center justify-between gap-3">
+          {/* Top Header */}
+          <header className="sticky top-0 z-40 border-b border-slate-200/90 bg-white/85 backdrop-blur-md dark:border-slate-800/80 dark:bg-slate-950/85">
+            <div className="page-shell py-3 sm:py-3.5">
+              <div className="flex items-center justify-between gap-4">
+                {/* Mobile Menu Button & Brand */}
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-100 text-brand-700 ring-1 ring-brand-200 dark:bg-slate-800 dark:text-brand-100 dark:ring-slate-700">
-                    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5">
-                      <path d="M8 4.75A1.75 1.75 0 0 1 9.75 3h8.5A1.75 1.75 0 0 1 20 4.75v10.5A1.75 1.75 0 0 1 18.25 17h-8.5A1.75 1.75 0 0 1 8 15.25V4.75ZM4 7.5A2.5 2.5 0 0 1 6.5 5H7v10.5A3.5 3.5 0 0 0 10.5 19H18v.5A1.5 1.5 0 0 1 16.5 21h-8A2.5 2.5 0 0 1 6 18.5V7.5H4Zm5.5 2.75h5.5a.75.75 0 0 0 0-1.5h-5.5a.75.75 0 0 0 0 1.5Zm0 4.5h7a.75.75 0 0 0 0-1.5h-7a.75.75 0 0 0 0 1.5Z" fill="currentColor"/>
-                    </svg>
-                  </div>
-                  <div className="min-w-0">
-                    <p className="truncate text-[11px] font-semibold uppercase tracking-[0.22em] text-brand-600 dark:text-brand-300">Campus portal</p>
-                    <h1 className="truncate text-base font-semibold sm:text-lg text-slate-900 dark:text-white">Attendance Management</h1>
+                  {user && (
+                    <button
+                      type="button"
+                      onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                      className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 lg:hidden"
+                      aria-label="Toggle navigation menu"
+                    >
+                      {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+                    </button>
+                  )}
+
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand-600 to-indigo-600 text-white shadow-sm lg:hidden">
+                      <GraduationCap className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="hidden text-[10px] font-bold uppercase tracking-wider text-brand-600 dark:text-brand-400 sm:block">
+                        Student Attendance
+                      </p>
+                      <h1 className="truncate text-base font-bold text-slate-900 dark:text-white sm:text-lg">
+                        Attendance Management
+                      </h1>
+                    </div>
                   </div>
                 </div>
 
-                {user && (
-                  <div className="flex items-center gap-2 sm:gap-3">
-                    <button
-                      type="button"
-                      onClick={() => applyTheme(!darkMode)}
-                      className="hidden rounded-xl border border-slate-200 bg-slate-50 p-2 text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700 sm:inline-flex sm:items-center sm:justify-center"
-                      aria-label="Toggle dark mode"
-                    >
-                      {darkMode ? (
-                        <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4">
-                          <path d="M12 2.75a1 1 0 0 1 1 1V5a1 1 0 1 1-2 0v-1.25a1 1 0 0 1 1-1Zm0 16.5a1 1 0 0 1 1 1V19a1 1 0 1 1-2 0v.25a1 1 0 0 1 1-1Zm7.25-7.25a1 1 0 0 1 0 2h-1.25a1 1 0 1 1 0-2h1.25Zm-16.5 0a1 1 0 0 1 0 2H1.5a1 1 0 1 1 0-2h1.25ZM17.3 5.7a1 1 0 0 1 1.41 0l.88.88a1 1 0 0 1-1.41 1.41l-.88-.88a1 1 0 0 1 0-1.41Zm-12.6 12.6a1 1 0 0 1 1.41 0l.88.88a1 1 0 1 1-1.41 1.41l-.88-.88a1 1 0 0 1 0-1.41ZM17.3 18.3a1 1 0 0 1 0-1.41l.88-.88a1 1 0 0 1 1.41 1.41l-.88.88a1 1 0 0 1-1.41 0Zm-12.6-12.6a1 1 0 0 1 0-1.41l.88-.88A1 1 0 0 1 6.99 5.7l-.88.88a1 1 0 0 1-1.41 0ZM12 7.25A4.75 4.75 0 1 1 7.25 12 4.75 4.75 0 0 1 12 7.25Z" fill="currentColor"/>
-                        </svg>
-                      ) : (
-                        <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4">
-                          <path d="M20.2 15.18A8.5 8.5 0 0 1 8.82 3.8a8.5 8.5 0 1 0 11.38 11.38Z" fill="currentColor"/>
-                        </svg>
-                      )}
-                    </button>
-                    <div className="hidden sm:flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-700 shadow-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100">
-                      <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                      <span>
-                        {user.name} <span className="opacity-80">({user.role})</span>
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        logout();
-                        navigate('/login');
-                      }}
-                      className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700 sm:text-sm"
-                    >
-                      Logout
-                    </button>
-                  </div>
-                )}
+                {/* Right Header Controls */}
+                <div className="flex items-center gap-2 sm:gap-3">
+                  {/* Theme Switcher Button (Visible Everywhere, Mobile & Desktop) */}
+                  <button
+                    type="button"
+                    onClick={() => applyTheme(!darkMode)}
+                    className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200/90 bg-white/80 text-slate-700 shadow-sm transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                    aria-label="Toggle color theme"
+                    title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+                  >
+                    {darkMode ? <Sun className="h-4 w-4 text-amber-400" /> : <Moon className="h-4 w-4 text-indigo-500" />}
+                  </button>
+
+                  {user && (
+                    <>
+                      <div className="hidden items-center gap-2 rounded-full border border-slate-200/90 bg-slate-50/80 px-3 py-1 text-xs text-slate-700 shadow-sm dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-200 md:flex">
+                        <span className="h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-emerald-500/20" />
+                        <span className="font-semibold">{user.name}</span>
+                        <span className="text-slate-400 capitalize">({user.role})</span>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handleLogout}
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200/90 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 hover:text-rose-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700/80 dark:hover:text-rose-400"
+                        title="Log out"
+                      >
+                        <LogOut className="h-3.5 w-3.5" />
+                        <span className="hidden sm:inline">Logout</span>
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
 
-            {user && (
-              <div className="border-t border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900/80 lg:hidden">
-                <nav className="page-shell flex gap-2 overflow-x-auto py-2 sm:py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                  {links.map((l) => (
-                    <NavLink
-                      key={l.to}
-                      to={l.to}
-                      end
-                      className={({ isActive }) =>
-                        `rounded-xl px-3 py-2 text-xs font-medium whitespace-nowrap transition sm:text-sm ${
-                          isActive
-                            ? 'bg-brand-50 text-brand-700 shadow-sm ring-1 ring-brand-100 dark:bg-slate-800 dark:text-brand-100 dark:ring-slate-700'
-                            : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-white'
-                        }`
-                      }
-                    >
-                      {l.label}
-                    </NavLink>
-                  ))}
+            {/* Mobile Drawer / Expandable Menu */}
+            {user && mobileMenuOpen && (
+              <div className="border-t border-slate-200/80 bg-white/95 px-4 py-4 shadow-xl backdrop-blur-md dark:border-slate-800 dark:bg-slate-900/95 lg:hidden animate-in slide-in-from-top-2 duration-200">
+                <div className="mb-3 flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-100 font-bold text-brand-700 dark:bg-brand-900/50 dark:text-brand-300 text-xs">
+                      {user.name?.charAt(0)?.toUpperCase()}
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-slate-900 dark:text-white">{user.name}</p>
+                      <p className="text-[10px] capitalize text-slate-500 dark:text-slate-400">{user.role}</p>
+                    </div>
+                  </div>
+                  <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 border border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800">
+                    Online
+                  </span>
+                </div>
+
+                <nav className="grid grid-cols-2 gap-2">
+                  {links.map((l) => {
+                    const Icon = l.icon;
+                    return (
+                      <NavLink
+                        key={l.to}
+                        to={l.to}
+                        onClick={() => setMobileMenuOpen(false)}
+                        end={l.to === '/admin' || l.to === '/faculty' || l.to === '/student'}
+                        className={({ isActive }) =>
+                          `flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium transition ${
+                            isActive
+                              ? 'bg-brand-500/10 font-semibold text-brand-600 ring-1 ring-brand-500/20 dark:bg-brand-500/20 dark:text-brand-300'
+                              : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
+                          }`
+                        }
+                      >
+                        <Icon className="h-4 w-4 shrink-0" />
+                        <span className="truncate">{l.label}</span>
+                      </NavLink>
+                    );
+                  })}
                 </nav>
               </div>
             )}
           </header>
 
-          <main className="page-shell flex-1 py-4 sm:py-6 lg:py-8">
+          {/* Main Outlet */}
+          <main className="page-shell flex-1 py-5 sm:py-7 lg:py-8">
             <Outlet />
           </main>
 
-          <footer className="page-shell pb-5 pt-2 text-center text-[11px] text-slate-500 dark:text-slate-400 sm:text-xs">
-            Open Source Attendance Management System — MERN Stack
+          {/* Footer */}
+          <footer className="page-shell border-t border-slate-200/60 py-5 text-center text-xs text-slate-500 dark:border-slate-800/60 dark:text-slate-400">
+            Smart Campus Attendance Management System — Verified Enterprise Portal
           </footer>
         </div>
       </div>

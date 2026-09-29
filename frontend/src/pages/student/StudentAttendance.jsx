@@ -1,8 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import api from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
-import { Card, Badge } from '../../components/ui';
+import { Card, Badge, Table } from '../../components/ui';
 import { format, differenceInCalendarDays } from 'date-fns';
+import {
+  GraduationCap,
+  Award,
+  CheckCircle2,
+  AlertTriangle,
+} from 'lucide-react';
 
 const ACTIVITY_LABELS = {
   industrial_visit: 'Industrial Visit',
@@ -32,7 +38,7 @@ export default function StudentAttendance() {
         setRecords(attRes.data);
         setOnDutyList(odRes.data);
 
-        // Group by course + type to get an at-a-glance summary
+        // Group by course + type to get an accurate at-a-glance summary
         const map = {};
         attRes.data.forEach((r) => {
           const course = r.session?.course;
@@ -54,59 +60,79 @@ export default function StudentAttendance() {
 
         setCourseSummary(Object.values(map));
       } catch (err) {
-        console.error('Failed to load student data', err);
+        console.error('Failed to load student attendance', err);
       } finally {
         setLoading(false);
       }
     })();
   }, [user.id]);
 
-  const averageAttendance = courseSummary.length
-    ? Math.round(courseSummary.reduce((total, item) => total + (item.total > 0 ? Math.round(((item.present + item.onDuty) / item.total) * 100) : 100), 0) / courseSummary.length)
+  // Only calculate average over courses that have had at least one session held
+  const activeCourses = courseSummary.filter((c) => c.total > 0);
+  const averageAttendance = activeCourses.length
+    ? Math.round(
+        activeCourses.reduce(
+          (sum, c) => sum + Math.round(((c.present + c.onDuty) / c.total) * 100),
+          0
+        ) / activeCourses.length
+      )
+    : courseSummary.length > 0
+    ? 100
     : 0;
 
   const approvedOD = onDutyList.length;
 
   return (
     <div className="space-y-6">
-      <div className="rounded-[28px] border border-brand-100 bg-gradient-to-r from-brand-700 via-brand-600 to-brand-500 p-5 text-white shadow-soft sm:p-6">
+      {/* Hero Banner */}
+      <div className="hero-banner">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-brand-100">Overview</p>
-            <h1 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">My Attendance Dashboard</h1>
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-bold uppercase tracking-widest text-indigo-100 backdrop-blur-md">
+              <GraduationCap className="h-3.5 w-3.5" /> Student Attendance Portal
+            </div>
+            <h1 className="mt-3 text-2xl font-extrabold tracking-tight text-white sm:text-3xl">
+              My Attendance Dashboard
+            </h1>
+            <p className="mt-1 text-sm text-indigo-100/90">
+              Track lecture presence, verify On-Duty credits, and monitor attendance thresholds.
+            </p>
           </div>
-          <div className="inline-flex items-center gap-2 self-start rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-medium text-brand-50 backdrop-blur-sm">
-            <span className="h-2 w-2 rounded-full bg-emerald-300" />
-            Roll No: {user.rollNo || 'N/A'}
+          <div className="inline-flex items-center gap-2 self-start rounded-full border border-white/20 bg-white/10 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm backdrop-blur-md">
+            <CheckCircle2 className="h-4 w-4 text-emerald-300" />
+            <span>Roll No: {user.rollNo || 'N/A'}</span>
           </div>
         </div>
 
-        <div className="mt-5 grid gap-3 sm:grid-cols-3">
-          <div className="rounded-2xl border border-white/10 bg-white/8 p-3 backdrop-blur-sm">
-            <p className="text-xs uppercase tracking-[0.18em] text-brand-100">Average</p>
-            <p className="mt-2 text-2xl font-bold">{averageAttendance}%</p>
-            <p className="text-sm text-brand-50/80">across courses</p>
+        <div className="mt-6 grid gap-3 sm:grid-cols-3">
+          <div className="rounded-2xl border border-white/15 bg-white/10 p-3.5 backdrop-blur-md">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-indigo-100">Cumulative Average</p>
+            <p className="mt-1 text-2xl font-extrabold text-white">{averageAttendance}%</p>
+            <p className="text-xs text-indigo-200">Across enrolled subjects</p>
           </div>
-          <div className="rounded-2xl border border-white/10 bg-white/8 p-3 backdrop-blur-sm">
-            <p className="text-xs uppercase tracking-[0.18em] text-brand-100">Courses</p>
-            <p className="mt-2 text-2xl font-bold">{courseSummary.length}</p>
-            <p className="text-sm text-brand-50/80">active subjects</p>
+          <div className="rounded-2xl border border-white/15 bg-white/10 p-3.5 backdrop-blur-md">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-indigo-100">Active Subjects</p>
+            <p className="mt-1 text-2xl font-extrabold text-white">{courseSummary.length}</p>
+            <p className="text-xs text-indigo-200">Lecture & lab courses</p>
           </div>
-          <div className="rounded-2xl border border-white/10 bg-white/8 p-3 backdrop-blur-sm">
-            <p className="text-xs uppercase tracking-[0.18em] text-brand-100">OD approvals</p>
-            <p className="mt-2 text-2xl font-bold">{approvedOD}</p>
-            <p className="text-sm text-brand-50/80">approved records</p>
+          <div className="rounded-2xl border border-white/15 bg-white/10 p-3.5 backdrop-blur-md">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-indigo-100">Approved OD Credits</p>
+            <p className="mt-1 text-2xl font-extrabold text-white">{approvedOD}</p>
+            <p className="text-xs text-indigo-200">Event exemptions verified</p>
           </div>
         </div>
       </div>
 
-      <Card title="Course-wise Attendance Overview">
+      {/* Course Cards Grid */}
+      <Card title="Course-wise Attendance Overview" subtitle="Real-time compliance percentage per subject">
         {loading ? (
-          <p className="text-sm text-slate-500">Loading attendance metrics...</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">Loading attendance metrics...</p>
         ) : courseSummary.length === 0 ? (
-          <p className="text-sm text-slate-500">No attendance records yet.</p>
+          <div className="py-8 text-center text-sm text-slate-500 dark:text-slate-400">
+            No attendance records logged yet for this semester.
+          </div>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {courseSummary.map((c, i) => {
               const credited = c.present + c.onDuty;
               const pct = c.total > 0 ? Math.round((credited / c.total) * 100) : 100;
@@ -115,26 +141,47 @@ export default function StudentAttendance() {
               return (
                 <div
                   key={i}
-                  className={`rounded-2xl border p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
-                    isLow ? 'border-red-200 bg-red-50/60' : 'border-slate-200 bg-slate-50/80'
+                  className={`rounded-2xl border p-4 shadow-sm transition-all hover:-translate-y-0.5 ${
+                    isLow
+                      ? 'border-rose-200/90 bg-rose-50/60 dark:border-rose-900/50 dark:bg-rose-950/20'
+                      : 'border-slate-200/90 bg-white/80 dark:border-slate-800 dark:bg-slate-900/60'
                   }`}
                 >
                   <div className="mb-3 flex items-start justify-between gap-2">
-                    <span className="text-sm font-semibold leading-tight text-slate-800">{c.courseName}</span>
-                    <Badge color={c.type === 'practical' ? 'blue' : c.type === 'project' ? 'purple' : 'gray'}>{c.type}</Badge>
+                    <span className="text-sm font-bold text-slate-900 dark:text-white leading-tight">
+                      {c.courseName}
+                    </span>
+                    <Badge color={c.type === 'practical' ? 'blue' : c.type === 'project' ? 'purple' : 'gray'}>
+                      {c.type}
+                    </Badge>
                   </div>
+
                   <div className="mb-2 flex items-baseline gap-2">
-                    <span className={`text-3xl font-extrabold ${isLow ? 'text-red-600' : 'text-brand-700'}`}>
+                    <span className={`text-3xl font-black ${isLow ? 'text-rose-600 dark:text-rose-400' : 'text-brand-600 dark:text-brand-400'}`}>
                       {pct}%
                     </span>
-                    {isLow && <span className="text-[11px] font-semibold text-red-500">Below 75%</span>}
+                    {isLow ? (
+                      <span className="text-xs font-bold text-rose-500 dark:text-rose-400 flex items-center gap-1">
+                        <AlertTriangle className="h-3 w-3" /> Below 75%
+                      </span>
+                    ) : (
+                      <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                        <CheckCircle2 className="h-3 w-3" /> On Track
+                      </span>
+                    )}
                   </div>
-                  <div className="space-y-1 text-xs text-slate-500">
-                    <div>Attended: <span className="font-medium text-slate-700">{c.present}</span> / {c.total}</div>
+
+                  <div className="space-y-1.5 text-xs text-slate-500 dark:text-slate-400 border-t border-slate-100 dark:border-slate-800 pt-2.5">
+                    <div className="flex justify-between">
+                      <span>Attended Lectures:</span>
+                      <span className="font-semibold text-slate-800 dark:text-slate-200">{c.present} / {c.total}</span>
+                    </div>
                     {c.onDuty > 0 && (
-                      <div className="flex items-center gap-1.5 font-medium text-violet-700">
-                        <svg viewBox="0 0 24 24" aria-hidden="true" className="h-3.5 w-3.5"><path d="M12 2.75a1 1 0 0 1 .9.55l1.1 2.24 2.47.36a1 1 0 0 1 .55 1.7l-1.79 1.74.42 2.46a1 1 0 0 1-1.45 1.05L12 0 9.8 0 9.8 0 9.8 0 8.9 18.35 8.8 18.35 8.8 18.35 7.3 18.35 7.3 18.35 7.3 18.35 7.3 18.35A1 1 0 0 1 6.3 17.3l.42-2.46-1.79-1.74a1 1 0 0 1 .55-1.7l2.47-.36 1.1-2.24A1 1 0 0 1 12 2.75Z" fill="currentColor"/></svg>
-                        On-Duty (OD): +{c.onDuty} sessions credited
+                      <div className="flex items-center justify-between text-purple-700 dark:text-purple-300 font-semibold">
+                        <span className="flex items-center gap-1">
+                          <Award className="h-3.5 w-3.5 text-purple-500" /> On-Duty Credits:
+                        </span>
+                        <span>+{c.onDuty} sessions</span>
                       </div>
                     )}
                   </div>
@@ -145,25 +192,33 @@ export default function StudentAttendance() {
         )}
       </Card>
 
-      <Card title="My Approved On-Duty (OD) & Visits">
+      {/* Approved On-Duty List Card */}
+      <Card title="Approved On-Duty (OD) Exemptions" subtitle="Official permissions credited towards your attendance count">
         {loading ? (
-          <p className="text-sm text-slate-500">Loading OD records...</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">Loading OD records...</p>
         ) : onDutyList.length === 0 ? (
-          <p className="text-sm text-slate-500">No On-Duty or official visit exemptions logged.</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">No On-Duty or official visit exemptions logged.</p>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2">
             {onDutyList.map((od) => {
               const days = differenceInCalendarDays(new Date(od.toDate), new Date(od.fromDate)) + 1;
               return (
-                <div key={od._id} className="flex items-start justify-between gap-3 rounded-2xl border border-violet-200 bg-violet-50/40 p-3.5">
+                <div
+                  key={od._id}
+                  className="flex items-start justify-between gap-3 rounded-2xl border border-purple-200/80 bg-purple-50/40 p-3.5 dark:border-purple-900/40 dark:bg-purple-950/20"
+                >
                   <div>
-                    <div className="text-sm font-semibold text-slate-800">{od.eventTitle}</div>
-                    <div className="mt-1 text-xs text-slate-500">
+                    <p className="text-sm font-bold text-slate-900 dark:text-white">{od.eventTitle}</p>
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                       {format(new Date(od.fromDate), 'dd MMM yyyy')} – {format(new Date(od.toDate), 'dd MMM yyyy')} ({days} {days === 1 ? 'day' : 'days'})
-                    </div>
-                    {od.remarks && <p className="mt-1 text-xs italic text-slate-600">"{od.remarks}"</p>}
+                    </p>
+                    {od.remarks && (
+                      <p className="mt-1 text-xs italic text-slate-600 dark:text-slate-300">
+                        "{od.remarks}"
+                      </p>
+                    )}
                   </div>
-                  <Badge color="purple">{ACTIVITY_LABELS[od.activityType] || od.activityType}</Badge>
+                  <Badge color="purple" dot>{ACTIVITY_LABELS[od.activityType] || od.activityType}</Badge>
                 </div>
               );
             })}
@@ -171,65 +226,73 @@ export default function StudentAttendance() {
         )}
       </Card>
 
-      <Card title="Detailed Attendance History">
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead>
-              <tr className="border-b border-slate-200 text-left text-slate-500">
-                <th className="py-2.5 pr-4 font-semibold">Date</th>
-                <th className="py-2.5 pr-4 font-semibold">Course</th>
-                <th className="py-2.5 pr-4 font-semibold">Type</th>
-                <th className="py-2.5 pr-4 font-semibold">Status</th>
-                <th className="py-2.5 pr-4 font-semibold">Method / Reason</th>
-              </tr>
-            </thead>
-            <tbody>
-              {records.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="py-6 text-center text-slate-400">
-                    No attendance records found
-                  </td>
-                </tr>
-              ) : (
-                records.map((r) => (
-                  <tr key={r._id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/70">
-                    <td className="py-2.5 pr-4 text-slate-700">
-                      {r.session?.date ? format(new Date(r.session.date), 'dd MMM yyyy') : '-'}
-                    </td>
-                    <td className="py-2.5 pr-4 font-medium text-slate-800">{r.session?.course?.name}</td>
-                    <td className="py-2.5 pr-4">
-                      <Badge color={r.session?.type === 'practical' ? 'blue' : r.session?.type === 'project' ? 'purple' : 'gray'}>
-                        {r.session?.type}
-                      </Badge>
-                    </td>
-                    <td className="py-2.5 pr-4">
-                      <Badge
-                        color={
-                          r.status === 'present'
-                            ? 'green'
-                            : r.status === 'on_duty'
-                            ? 'purple'
-                            : r.status === 'late'
-                            ? 'yellow'
-                            : 'red'
-                        }
-                      >
-                        {r.status === 'on_duty' ? 'On Duty' : r.status}
-                      </Badge>
-                    </td>
-                    <td className="py-2.5 pr-4 text-xs text-slate-600">
-                      {r.status === 'on_duty' && r.dutyReason ? (
-                        <span className="font-medium text-violet-700">OD: {r.dutyReason}</span>
-                      ) : (
-                        r.method
-                      )}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+      {/* Detailed Attendance History Table */}
+      <Card title="Detailed Attendance History" subtitle="Chronological ledger of all class check-ins">
+        <Table
+          columns={[
+            {
+              key: 'date',
+              header: 'Date',
+              render: (r) =>
+                r.session?.date ? (
+                  <div className="font-semibold text-slate-900 dark:text-white">
+                    {format(new Date(r.session.date), 'dd MMM yyyy')}
+                  </div>
+                ) : (
+                  '-'
+                ),
+            },
+            {
+              key: 'course',
+              header: 'Subject',
+              render: (r) => r.session?.course?.name || '-',
+            },
+            {
+              key: 'type',
+              header: 'Type',
+              render: (r) => (
+                <Badge color={r.session?.type === 'practical' ? 'blue' : r.session?.type === 'project' ? 'purple' : 'gray'}>
+                  {r.session?.type}
+                </Badge>
+              ),
+            },
+            {
+              key: 'status',
+              header: 'Status',
+              render: (r) => (
+                <Badge
+                  color={
+                    r.status === 'present'
+                      ? 'green'
+                      : r.status === 'on_duty'
+                      ? 'purple'
+                      : r.status === 'late'
+                      ? 'yellow'
+                      : 'red'
+                  }
+                  dot
+                >
+                  {r.status === 'on_duty' ? 'On Duty' : r.status}
+                </Badge>
+              ),
+            },
+            {
+              key: 'method',
+              header: 'Verification',
+              render: (r) => (
+                <div className="text-xs text-slate-500 dark:text-slate-400">
+                  {r.status === 'on_duty' && r.dutyReason ? (
+                    <span className="font-medium text-purple-600 dark:text-purple-400">OD: {r.dutyReason}</span>
+                  ) : (
+                    r.method || 'verified'
+                  )}
+                </div>
+              ),
+            },
+          ]}
+          data={records}
+          emptyText="No class check-in entries found."
+        />
       </Card>
     </div>
   );

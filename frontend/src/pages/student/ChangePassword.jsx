@@ -3,8 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
-import { Button, PasswordInput } from '../../components/ui';
+import { Button, PasswordInput, Card } from '../../components/ui';
 import { validateChangePasswordForm } from '../../validators';
+import { ShieldCheck, Lock, CheckCircle2 } from 'lucide-react';
 
 export default function ChangePassword() {
   const navigate = useNavigate();
@@ -50,7 +51,9 @@ export default function ChangePassword() {
       setUser(updatedUser);
       localStorage.setItem('user', JSON.stringify(updatedUser));
       toast.success('Password changed successfully.');
-      navigate(user.role === 'student' ? '/student' : '/faculty');
+
+      const targetDashboard = user.role === 'admin' ? '/admin' : user.role === 'student' ? '/student' : '/faculty';
+      navigate(targetDashboard);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to change password.');
     } finally {
@@ -59,47 +62,78 @@ export default function ChangePassword() {
   };
 
   return (
-    <div className="mx-auto max-w-md rounded-[28px] border border-slate-200 bg-white p-5 shadow-soft sm:p-7">
-      <div className="mb-6 rounded-2xl bg-gradient-to-r from-brand-700 via-brand-600 to-brand-500 p-4 text-white">
-        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-brand-100">Security</p>
-        <h1 className="mt-2 text-2xl font-bold tracking-tight">Set Your New Password</h1>
+    <div className="mx-auto max-w-lg space-y-6">
+      <div className="rounded-3xl border border-indigo-200/80 bg-gradient-to-br from-indigo-700 via-brand-600 to-indigo-900 p-6 text-white shadow-soft sm:p-7 dark:border-indigo-500/30 dark:from-indigo-950 dark:via-brand-950 dark:to-slate-950">
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/10 ring-1 ring-white/20 backdrop-blur-md">
+            <Lock className="h-5 w-5 text-indigo-200" />
+          </div>
+          <div>
+            <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-200">
+              Security Center
+            </span>
+            <h1 className="text-xl font-bold tracking-tight text-white sm:text-2xl">
+              Account Password
+            </h1>
+          </div>
+        </div>
+        <p className="mt-3 text-xs text-indigo-100/90 leading-relaxed sm:text-sm">
+          {user?.mustChangePassword
+            ? 'This is your initial login. For security compliance, please choose a strong new password before continuing.'
+            : 'Update your account password with a strong combination of uppercase, lowercase, numbers, and symbols.'}
+        </p>
       </div>
-      <p className="mb-6 text-sm text-slate-500">
-        This is your first login, so please choose a new password before continuing.
-      </p>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <PasswordInput
-          label="Current Password"
-          name="currentPassword"
-          value={form.currentPassword}
-          error={errors.currentPassword}
-          placeholder="Enter current password"
-          onChange={handleChange}
-        />
+      <Card title="Update Password" subtitle="Enter your current and new credentials">
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <PasswordInput
+            label="Current Password"
+            name="currentPassword"
+            value={form.currentPassword}
+            error={errors.currentPassword}
+            placeholder="Enter current password"
+            onChange={handleChange}
+          />
 
-        <PasswordInput
-          label="New Password"
-          name="newPassword"
-          value={form.newPassword}
-          error={errors.newPassword}
-          placeholder="Enter new password"
-          onChange={handleChange}
-        />
+          <PasswordInput
+            label="New Password"
+            name="newPassword"
+            value={form.newPassword}
+            error={errors.newPassword}
+            placeholder="Min 8 characters with letters, numbers, symbols"
+            onChange={handleChange}
+          />
 
-        <PasswordInput
-          label="Confirm New Password"
-          name="confirmPassword"
-          value={form.confirmPassword}
-          error={errors.confirmPassword}
-          placeholder="Re-enter new password"
-          onChange={handleChange}
-        />
+          <PasswordInput
+            label="Confirm New Password"
+            name="confirmPassword"
+            value={form.confirmPassword}
+            error={errors.confirmPassword}
+            placeholder="Re-enter your new password"
+            onChange={handleChange}
+          />
 
-        <Button type="submit" className="w-full rounded-xl py-3" disabled={busy}>
-          {busy ? 'Updating...' : 'Update Password'}
-        </Button>
-      </form>
+          <div className="rounded-2xl border border-slate-200/80 bg-slate-50/70 p-3.5 text-xs text-slate-600 dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-400">
+            <p className="font-semibold text-slate-800 dark:text-slate-200 mb-1 flex items-center gap-1.5">
+              <ShieldCheck className="h-4 w-4 text-emerald-500" /> Password Requirements:
+            </p>
+            <ul className="space-y-0.5 list-disc list-inside">
+              <li>Minimum 8 characters length</li>
+              <li>At least one uppercase and one lowercase letter</li>
+              <li>At least one numeric digit and one special character</li>
+            </ul>
+          </div>
+
+          <Button
+            type="submit"
+            loading={busy}
+            icon={CheckCircle2}
+            className="w-full py-3 text-sm font-semibold shadow-card"
+          >
+            Update Password
+          </Button>
+        </form>
+      </Card>
     </div>
   );
 }

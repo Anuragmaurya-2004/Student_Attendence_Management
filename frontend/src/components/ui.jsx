@@ -1,12 +1,26 @@
 import React from 'react';
+import { Inbox } from 'lucide-react';
 
-export function Card({ title, children, actions, className = '' }) {
+export function Card({ title, subtitle, children, actions, className = '' }) {
   return (
-    <div className={`mb-5 rounded-[28px] border border-slate-200/80 bg-white/95 p-4 shadow-[0_16px_38px_rgba(15,23,42,0.06)] ring-1 ring-slate-100 backdrop-blur-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_20px_44px_rgba(15,23,42,0.09)] dark:border-slate-700 dark:bg-slate-900/80 dark:ring-slate-800 sm:p-5 ${className}`}>
-      {(title || actions) && (
-        <div className="mb-4 flex items-center justify-between gap-3">
-          {title && <h2 className="text-base font-semibold tracking-tight text-slate-900 dark:text-slate-100 sm:text-lg">{title}</h2>}
-          {actions}
+    <div
+      className={`rounded-3xl border border-slate-200/90 bg-white/95 p-5 shadow-[0_10px_30px_rgba(15,23,42,0.04)] ring-1 ring-slate-900/5 backdrop-blur-md transition-all duration-200 dark:border-slate-800/80 dark:bg-slate-900/90 dark:ring-white/5 dark:shadow-[0_10px_30px_rgba(0,0,0,0.35)] sm:p-6 ${className}`}
+    >
+      {(title || subtitle || actions) && (
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4 dark:border-slate-800/80">
+          <div>
+            {title && (
+              <h2 className="text-base font-semibold tracking-tight text-slate-900 dark:text-white sm:text-lg">
+                {title}
+              </h2>
+            )}
+            {subtitle && (
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                {subtitle}
+              </p>
+            )}
+          </div>
+          {actions && <div className="flex items-center gap-2">{actions}</div>}
         </div>
       )}
       {children}
@@ -21,45 +35,81 @@ export { default as TextInput } from './TextInput';
 export { default as PasswordInput } from './PasswordInput';
 export { default as Select } from './Select';
 
-export function Badge({ children, color = 'gray' }) {
+export function Badge({ children, color = 'gray', className = '', dot = false }) {
   const colors = {
-    gray: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200',
-    green: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
-    red: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
-    yellow: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
-    blue: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
-    purple: 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300',
-    indigo: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300',
+    gray: 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800/80 dark:text-slate-300 dark:border-slate-700',
+    green: 'bg-emerald-50 text-emerald-700 border-emerald-200/80 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800/60',
+    red: 'bg-rose-50 text-rose-700 border-rose-200/80 dark:bg-rose-950/50 dark:text-rose-300 dark:border-rose-800/60',
+    yellow: 'bg-amber-50 text-amber-800 border-amber-200/80 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800/60',
+    blue: 'bg-sky-50 text-sky-700 border-sky-200/80 dark:bg-sky-950/50 dark:text-sky-300 dark:border-sky-800/60',
+    purple: 'bg-purple-50 text-purple-700 border-purple-200/80 dark:bg-purple-950/50 dark:text-purple-300 dark:border-purple-800/60',
+    indigo: 'bg-indigo-50 text-indigo-700 border-indigo-200/80 dark:bg-indigo-950/50 dark:text-indigo-300 dark:border-indigo-800/60',
   };
-  return <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold tracking-wide ${colors[color] || colors.gray}`}>{children}</span>;
+
+  const dotColors = {
+    gray: 'bg-slate-400 dark:bg-slate-500',
+    green: 'bg-emerald-500',
+    red: 'bg-rose-500',
+    yellow: 'bg-amber-500',
+    blue: 'bg-sky-500',
+    purple: 'bg-purple-500',
+    indigo: 'bg-indigo-500',
+  };
+
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium tracking-wide shadow-sm transition-colors ${
+        colors[color] || colors.gray
+      } ${className}`}
+    >
+      {dot && <span className={`h-1.5 w-1.5 rounded-full ${dotColors[color] || dotColors.gray}`} />}
+      {children}
+    </span>
+  );
 }
 
-export function Table({ columns, data, emptyText = 'No data found' }) {
+export function Table({ columns, data = [], emptyText = 'No records found', className = '' }) {
   return (
-    <div className="overflow-x-auto rounded-2xl border border-slate-200/80 bg-slate-50/40 dark:border-slate-700 dark:bg-slate-950/40">
-      <table className="min-w-full text-sm">
+    <div className={`overflow-x-auto rounded-2xl border border-slate-200/90 bg-white/70 shadow-sm dark:border-slate-800 dark:bg-slate-950/40 ${className}`}>
+      <table className="min-w-full text-left text-sm">
         <thead>
-          <tr className="border-b border-slate-200 bg-slate-50/90 text-left text-slate-600 backdrop-blur-sm dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-300">
-            {columns.map((col) => (
-              <th key={col.key} className="py-3 pr-4 font-semibold tracking-wide">
+          <tr className="border-b border-slate-200/90 bg-slate-50/80 font-semibold text-slate-600 dark:border-slate-800 dark:bg-slate-900/70 dark:text-slate-300">
+            {columns.map((col, idx) => (
+              <th
+                key={col.key || idx}
+                className={`py-3.5 pr-4 text-xs uppercase tracking-wider ${
+                  idx === 0 ? 'pl-4 sm:pl-6' : 'pl-2'
+                } ${idx === columns.length - 1 ? 'pr-4 sm:pr-6' : ''} ${col.headerClassName || ''}`}
+              >
                 {col.header}
               </th>
             ))}
           </tr>
         </thead>
-        <tbody>
+        <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
           {data.length === 0 ? (
             <tr>
-              <td colSpan={columns.length} className="py-6 text-center text-slate-500 dark:text-slate-400">
-                {emptyText}
+              <td colSpan={columns.length} className="py-12 text-center text-slate-500 dark:text-slate-400">
+                <div className="flex flex-col items-center justify-center gap-2">
+                  <Inbox className="h-8 w-8 text-slate-400 dark:text-slate-600" />
+                  <p className="text-sm font-medium">{emptyText}</p>
+                </div>
               </td>
             </tr>
           ) : (
-            data.map((row, idx) => (
-              <tr key={row._id || idx} className="border-b border-slate-100 bg-white/75 last:border-0 hover:bg-slate-50/80 dark:border-slate-800 dark:bg-slate-900/30 dark:hover:bg-slate-800/50">
-                {columns.map((col) => (
-                  <td key={col.key} className="py-2.5 pr-4 align-top text-slate-700 dark:text-slate-200">
-                    {col.render ? col.render(row) : row[col.key]}
+            data.map((row, rowIdx) => (
+              <tr
+                key={row._id || rowIdx}
+                className="transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/40"
+              >
+                {columns.map((col, colIdx) => (
+                  <td
+                    key={col.key || colIdx}
+                    className={`py-3 pr-4 text-slate-700 dark:text-slate-200 align-middle ${
+                      colIdx === 0 ? 'pl-4 sm:pl-6 font-medium text-slate-900 dark:text-white' : 'pl-2'
+                    } ${colIdx === columns.length - 1 ? 'pr-4 sm:pr-6' : ''} ${col.cellClassName || ''}`}
+                  >
+                    {col.render ? col.render(row, rowIdx) : row[col.key]}
                   </td>
                 ))}
               </tr>
