@@ -330,20 +330,35 @@ async function seed() {
     defaulterThresholdPercent: 75,
   });
 
-  // Assign courses to faculty (Prof. Priya is also Project Guide for CS503P)
+  // Assign courses, class batches, and Class Teacher roles to faculty
   facultyPriya.coursesAssigned = [cseCloudTh._id, cseCloudPr._id, cseProject._id];
+  facultyPriya.classTeacherOf = [batchTECSE._id];
+  facultyPriya.classBatchesAssigned = [batchTECSE._id, batchBECSE._id];
   await facultyPriya.save();
+  batchTECSE.classTeacher = facultyPriya._id;
+  await batchTECSE.save();
 
   facultyAmit.coursesAssigned = [cseDBMSTh._id, cseDBMSPr._id];
+  facultyAmit.classBatchesAssigned = [batchTECSE._id];
   await facultyAmit.save();
 
+  // Prof. Simran Patil is Class Teacher of TE-IT, and teaches Web Tech in SE-IT & TE-IT
   facultySneha.coursesAssigned = [itWebTh._id, itWebPr._id];
+  facultySneha.classTeacherOf = [batchTEIT._id];
+  facultySneha.classBatchesAssigned = [batchSEIT._id, batchTEIT._id];
   await facultySneha.save();
+  batchTEIT.classTeacher = facultySneha._id;
+  await batchTEIT.save();
 
+  // Prof. Neha Gupta is Class Teacher of TE-AIDS
   facultyNeha.coursesAssigned = [aidsMLTh._id, aidsMLPr._id];
+  facultyNeha.classTeacherOf = [batchTEAIP._id];
+  facultyNeha.classBatchesAssigned = [batchTEAIP._id];
   await facultyNeha.save();
+  batchTEAIP.classTeacher = facultyNeha._id;
+  await batchTEAIP.save();
 
-  console.log('Created Theory & Practical Courses.');
+  console.log('Created Theory & Practical Courses & Assigned Class Teachers.');
 
   // ==========================================
   // 6. STUDENTS
@@ -377,19 +392,23 @@ async function seed() {
     { name: 'Nikhil Kamath', rollNo: 'AI2604', email: 'student19@college.edu', batch: batchTEAIP._id, dept: deptAIDS._id, parentEmail: 'parent.nikhil@gmail.com', phone: '9840044444' },
     { name: 'Shruti Iyer', rollNo: 'AI2605', email: 'student20@college.edu', batch: batchTEAIP._id, dept: deptAIDS._id, parentEmail: 'parent.shruti@gmail.com', phone: '9840055555' },
 
-    //BE-IT Students (Batch 4)
+    // BE-IT Students (Batch 4)
     {
       name: 'Anurag Maurya',
       rollNo: 'IT3301',
       email: '233119@theemcoe.org',
-      batch: batchTECSE._id,
-      dept: deptCSE._id,
+      batch: batchBEIT._id,
+      dept: deptIT._id,
       parentEmail: 'anuragmaurya1114@gmail.com',
       phone: '9876543212',
     },
-    { name: 'Chintan Parave', rollNo: 'IT3302', email: '233127@theemcoe.org', batch: batchBEIT._id, dept: deptCSE._id, parentEmail: 'anuragmaurya1114@gmail.com', phone: '9876543213' },
-    { name: 'Atharva Patil', rollNo: 'IT3303', email: '233129@theemcoe.org', batch: batchBEIT._id, dept: deptCSE._id, parentEmail: 'anuragmaurya1114@gmail.com', phone: '9876543214' },
-    { name: 'Priya Mali ', rollNo: 'IT3304', email: '233117@theemcoe.org', batch: batchBEIT._id, dept: deptCSE._id, parentEmail: 'anuragmaurya1114@gmail.com', phone: '9876543215' }
+    { name: 'Chintan Parave', rollNo: 'IT3302', email: '233127@theemcoe.org', batch: batchBEIT._id, dept: deptIT._id, parentEmail: 'anuragmaurya1114@gmail.com', phone: '9876543213' },
+    { name: 'Atharva Patil', rollNo: 'IT3303', email: '233129@theemcoe.org', batch: batchBEIT._id, dept: deptIT._id, parentEmail: 'anuragmaurya1114@gmail.com', phone: '9876543214' },
+    { name: 'Priya Mali', rollNo: 'IT3304', email: '233117@theemcoe.org', batch: batchBEIT._id, dept: deptIT._id, parentEmail: 'anuragmaurya1114@gmail.com', phone: '9876543215' },
+
+    // BE-CSE Students (Batch 5)
+    { name: 'Devendra Joshi', rollNo: 'CSE3301', email: 'student21@college.edu', batch: batchBECSE._id, dept: deptCSE._id, parentEmail: 'parent.dev@gmail.com', phone: '9820011999' },
+    { name: 'Meera Iyer', rollNo: 'CSE3302', email: 'student22@college.edu', batch: batchBECSE._id, dept: deptCSE._id, parentEmail: 'parent.meera@gmail.com', phone: '9820022999' }
   ];
 
   const createdStudents = [];

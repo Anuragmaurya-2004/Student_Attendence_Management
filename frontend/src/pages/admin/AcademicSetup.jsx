@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import api from '../../api/client';
 import { Card, Button, Input, Select, Table, Badge } from '../../components/ui';
 import { validateAcademicYearForm, validateDepartmentForm, validateBatchForm, validateCourseForm } from '../../validators';
+import { useAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
 import {
   Settings,
@@ -9,21 +10,32 @@ import {
   Download,
   Upload,
   CheckCircle2,
+  GraduationCap,
 } from 'lucide-react';
 
 export default function AcademicSetup() {
+  const { user } = useAuth();
+  const hodDeptId = user?.department?._id || user?.department;
+
   const [departments, setDepartments] = useState([]);
   const [years, setYears] = useState([]);
   const [batches, setBatches] = useState([]);
   const [courses, setCourses] = useState([]);
+  const [facultyList, setFacultyList] = useState([]);
 
   const [deptForm, setDeptForm] = useState({ name: '', code: '' });
   const [yearForm, setYearForm] = useState({ label: '', startDate: '', endDate: '' });
-  const [batchForm, setBatchForm] = useState({ name: '', department: '', semester: '', academicYear: '' });
+  const [batchForm, setBatchForm] = useState({
+    name: '',
+    department: hodDeptId || '',
+    semester: '',
+    academicYear: '',
+    classTeacher: '',
+  });
   const [courseForm, setCourseForm] = useState({
     name: '',
     code: '',
-    department: '',
+    department: hodDeptId || '',
     semester: '',
     type: 'theory',
     weeklyHours: 1,
@@ -32,7 +44,7 @@ export default function AcademicSetup() {
 
   const [deptErrors, setDeptErrors] = useState({ name: '', code: '' });
   const [yearErrors, setYearErrors] = useState({ label: '', startDate: '', endDate: '' });
-  const [batchErrors, setBatchErrors] = useState({ name: '', department: '', semester: '', academicYear: '' });
+  const [batchErrors, setBatchErrors] = useState({ name: '', department: '', semester: '', academicYear: '', classTeacher: '' });
   const [courseErrors, setCourseErrors] = useState({
     name: '',
     code: '',
@@ -49,16 +61,18 @@ export default function AcademicSetup() {
 
   const loadAll = async () => {
     try {
-      const [d, y, b, c] = await Promise.all([
+      const [d, y, b, c, f] = await Promise.all([
         api.get('/academic/departments'),
         api.get('/academic/academic-years'),
         api.get('/academic/class-batches'),
         api.get('/academic/courses'),
+        api.get('/faculty'),
       ]);
       setDepartments(d.data);
       setYears(y.data);
       setBatches(b.data);
       setCourses(c.data);
+      setFacultyList(f.data);
     } catch (e) {
       console.error('Failed to load academic setup records', e);
     }
@@ -331,7 +345,7 @@ export default function AcademicSetup() {
         </Card>
 
         {/* Class Batches Card */}
-        <Card title="Class Batches / Divisions" subtitle="Cohort groups enrolled in semesters">
+        <Card title="Class Batches / Divisions" subtitle="Cohort groups enrolled in semesters with assigned Class Teachers">
           <form
             className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mb-5"
             onSubmit={(e) => {
@@ -339,8 +353,8 @@ export default function AcademicSetup() {
               submit(
                 () => api.post('/academic/class-batches', batchForm),
                 () => {
-                  setBatchForm({ name: '', department: '', semester: '', academicYear: '' });
-                  setBatchErrors({ name: '', department: '', semester: '', academicYear: '' });
+                  setBatchForm({ name: '', department: hodDeptId || '', semester: '', academicYear: '', classTeacher: '' });
+                  setBatchErrors({ name: '', department: '', semester: '', academicYear: '', classTeacher: '' });
                 },
                 validateBatch
               );
@@ -371,6 +385,7 @@ export default function AcademicSetup() {
               <Select
                 value={batchForm.department}
                 onChange={(e) => setBatchForm({ ...batchForm, department: e.target.value })}
+                disabled={Boolean(user?.isHOD && hodDeptId)}
                 error={batchErrors.department}
               >
                 <option value="">Select Department</option>
@@ -394,6 +409,21 @@ export default function AcademicSetup() {
               {batchErrors.academicYear && <p className="mt-1 text-xs text-rose-500">{batchErrors.academicYear}</p>}
             </div>
             <div className="sm:col-span-2">
+              <Select
+                value={batchForm.classTeacher}
+                onChange={(e) => setBatchForm({ ...batchForm, classTeacher: e.target.value })}
+              >
+                <option value="">Assign Class Teacher (Optional)</option>
+                {facultyList
+                  .filter((f) => !batchForm.department || f.department?._id === batchForm.department || f.department === batchForm.department)
+                  .map((f) => (
+                    <option key={f._id} value={f._id}>
+                      {f.name} ({f.designation || 'Faculty'})
+                    </option>
+                  ))}
+              </Select>
+            </div>
+            <div className="sm:col-span-2">
               <Button type="submit" icon={Plus} size="sm" className="w-full sm:w-auto">
                 Add Class Batch
               </Button>
@@ -410,6 +440,16 @@ export default function AcademicSetup() {
               },
               { key: 'department', header: 'Department', render: (r) => r.department?.name },
               { key: 'academicYear', header: 'Academic Year', render: (r) => r.academicYear?.label },
+              {
+                key: 'classTeacher',
+                header: 'Class Teacher',
+                render: (r) =>
+                  r.classTeacher ? (
+                    <Badge color="purple" dot>{r.classTeacher.name}</Badge>
+                  ) : (
+                    <span className="text-xs text-slate-400">Not Assigned</span>
+                  ),
+              },
             ]}
             data={batches}
           />

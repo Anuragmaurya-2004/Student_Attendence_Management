@@ -4,14 +4,24 @@ const ExcelJS = require('exceljs');
 const PDFDocument = require('pdfkit');
 const { protect, authorize } = require('../middleware/auth');
 const { computeAllDefaulters } = require('../services/defaulterService');
+const { getDepartmentScope } = require('../utils/userScope');
 
 router.use(protect, authorize('admin', 'faculty'));
 
 // @route GET /api/export/defaulters/excel
 router.get('/defaulters/excel', async (req, res) => {
-  const results = (await computeAllDefaulters({ academicYear: req.query.academicYear, logResults: false })).filter(
-    (r) => r.isDefaulter
-  );
+  const deptScope = getDepartmentScope(req);
+  const options = {
+    academicYear: req.query.academicYear,
+    department: deptScope || req.query.department,
+    classBatch: req.query.classBatch,
+    logResults: false,
+  };
+  if (req.user.role === 'faculty') {
+    options.facultyId = req.user.id;
+  }
+
+  const results = (await computeAllDefaulters(options)).filter((r) => r.isDefaulter);
 
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet('Defaulters');
@@ -37,9 +47,18 @@ router.get('/defaulters/excel', async (req, res) => {
 
 // @route GET /api/export/defaulters/pdf
 router.get('/defaulters/pdf', async (req, res) => {
-  const results = (await computeAllDefaulters({ academicYear: req.query.academicYear, logResults: false })).filter(
-    (r) => r.isDefaulter
-  );
+  const deptScope = getDepartmentScope(req);
+  const options = {
+    academicYear: req.query.academicYear,
+    department: deptScope || req.query.department,
+    classBatch: req.query.classBatch,
+    logResults: false,
+  };
+  if (req.user.role === 'faculty') {
+    options.facultyId = req.user.id;
+  }
+
+  const results = (await computeAllDefaulters(options)).filter((r) => r.isDefaulter);
 
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', 'attachment; filename=defaulters.pdf');

@@ -97,6 +97,12 @@ const markBulk = async (req, res) => {
   res.json({ message: 'Bulk attendance saved', result });
 };
 
+const ClassBatch = require('../models/ClassBatch');
+const Course = require('../models/Course');
+const Faculty = require('../models/Faculty');
+const { computeStudentCourseAttendance } = require('../services/defaulterService');
+const { getDepartmentScope } = require('../utils/userScope');
+
 // @desc Get attendance records for a session
 // @route GET /api/attendance/session/:sessionId
 const getBySession = async (req, res) => {
@@ -110,10 +116,135 @@ const getByStudent = async (req, res) => {
   if (req.user.role === 'student' && req.user.id !== req.params.studentId) {
     return res.status(403).json({ message: 'Forbidden' });
   }
-  const records = await Attendance.find({ student: req.params.studentId })
+
+  const student = await Student.findById(req.params.studentId);
+  if (!student) return res.status(404).json({ message: 'Student not found' });
+
+  const deptScope = getDepartmentScope(req);
+  if (deptScope && student.department.toString() !== deptScope) {
+    return res.status(403).json({ message: 'Forbidden: Student is outside your department scope.' });
+  }
+
+  let records = await Attendance.find({ student: req.params.studentId })
     .populate({ path: 'session', populate: { path: 'course classBatch' } })
     .sort('-markedAt');
+
+  // Faculty visibility logic:
+  // - Class teacher sees ALL subject attendance
+  // - Other faculty only sees attendance for their specifically assigned courses
+  if (req.user.role === 'faculty') {
+    const faculty = await Faculty.findById(req.user.id);
+    if (faculty) {
+      const isClassTeacher = (faculty.classTeacherOf || []).some(
+        (b) => b.toString() === student.classBatch.toString()
+      );
+      if (!isClassTeacher) {
+        const assignedCourses = (faculty.coursesAssigned || []).map((c) => c.toString());
+        records = records.filter((r) => assignedCourses.includes(r.session?.course?._id?.toString()));
+      }
+    }
+  }
+
   res.json(records);
 };
 
-module.exports = { checkIn, markManual, markBulk, getBySession, getByStudent };
+// @desc Get multi-subject attendance matrix for a class batch (Class Teacher / HOD / Admin)
+// @route GET /api/attendance/class-matrix/:classBatchId
+const getClassBatchMatrix = async (req, res) => {
+  const { classBatchId } = req.params;
+  const batch = await ClassBatch.findById(classBatchId)
+    .populate('department academicYear')
+    .populate('classTeacher', 'name email designation');
+  if (!batch) return res.status(404).json({ message: 'Class batch not found' });
+
+  const deptScope = getDepartmentScope(req);
+  if (deptScope && batch.department?._id?.toString() !== deptScope) {
+    return res.status(403).json({ message: 'Forbidden: Class batch is outside your department.' });
+  }
+
+  if (req.user.role === 'faculty') {
+    const faculty = await Faculty.findById(req.user.id);
+    const isClassTeacher =
+      (faculty?.classTeacherOf || []).some((b) => b.toString() === batch._id.toString()) ||
+      batch.classTeacher?._id?.toString() === req.user.id;
+
+    if (!isClassTeacher) {
+      return res.status(403).json({
+        message: 'Forbidden: Only the designated Class Teacher or HOD/Admin can view the full class attendance matrix.',
+      });
+    }
+  }
+
+  const courses = await Course.find({
+    department: batch.department?._id || batch.department,
+    semester: batch.semester,
+    academicYear: batch.academicYear?._id || batch.academicYear,
+  }).sort('code');
+
+  const students = await Student.find({ classBatch: batch._id, status: 'active' }).sort('rollNo');
+
+  const matrix = [];
+  for (const student of students) {
+    const courseStats = [];
+    let studentTotalAttended = 0;
+    let studentTotalHeld = 0;
+    let studentOnDuty = 0;
+
+    for (const course of courses) {
+      const stats = await computeStudentCourseAttendance(student._id, course._id);
+      courseStats.push({
+        courseId: course._id,
+        courseName: course.name,
+        courseCode: course.code,
+        type: course.type,
+        attendedHours: stats.attendedHours,
+        onDutyHours: stats.onDutyHours,
+        totalHeldHours: stats.totalHeldHours,
+        attendancePercent: stats.attendancePercent,
+        threshold: stats.threshold,
+        isDefaulter: stats.isDefaulter,
+      });
+      studentTotalAttended += stats.attendedHours;
+      studentTotalHeld += stats.totalHeldHours;
+      studentOnDuty += stats.onDutyHours;
+    }
+
+    const overallPercent =
+      studentTotalHeld > 0 ? Math.round((studentTotalAttended / studentTotalHeld) * 10000) / 100 : 100;
+    const isOverallDefaulter = overallPercent < 75 || courseStats.some((c) => c.isDefaulter);
+
+    matrix.push({
+      student: {
+        _id: student._id,
+        name: student.name,
+        rollNo: student.rollNo,
+        email: student.email,
+        phone: student.phone,
+        status: student.status,
+      },
+      courses: courseStats,
+      overall: {
+        totalAttendedHours: studentTotalAttended,
+        totalHeldHours: studentTotalHeld,
+        onDutyHours: studentOnDuty,
+        overallPercent,
+        isDefaulter: isOverallDefaulter,
+      },
+    });
+  }
+
+  res.json({
+    classBatch: batch,
+    courses,
+    matrix,
+  });
+};
+
+module.exports = {
+  checkIn,
+  markManual,
+  markBulk,
+  getBySession,
+  getByStudent,
+  getClassBatchMatrix,
+};

@@ -32,6 +32,7 @@ const linksByRole = {
     { to: '/admin/setup', label: 'Academic Setup', icon: Settings },
     { to: '/admin/students', label: 'Students', icon: GraduationCap },
     { to: '/admin/faculty', label: 'Faculty', icon: Users },
+    { to: '/admin/class-matrix', label: 'Class Matrix', icon: BookOpen },
     { to: '/admin/onduty', label: 'On-Duty & Visits', icon: Award },
     { to: '/admin/holidays', label: 'Holidays', icon: Calendar },
     { to: '/admin/defaulters', label: 'Defaulters', icon: AlertTriangle },
@@ -40,6 +41,7 @@ const linksByRole = {
   ],
   faculty: [
     { to: '/faculty', label: 'My Sessions', icon: BookOpen },
+    { to: '/faculty/my-class', label: 'My Class Matrix', icon: GraduationCap },
     { to: '/faculty/onduty', label: 'On-Duty & Visits', icon: Award },
     { to: '/faculty/defaulters', label: 'Defaulters', icon: AlertTriangle },
     { to: '/faculty/change-password', label: 'Change Password', icon: KeyRound },
@@ -80,8 +82,8 @@ export default function Layout() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 transition-colors duration-250 dark:bg-slate-950 dark:text-slate-100">
-      <div className="mx-auto flex min-h-screen max-w-[1920px] flex-col lg:flex-row">
+    <div className="min-h-screen w-full overflow-x-hidden bg-slate-50 text-slate-900 transition-colors duration-250 dark:bg-slate-950 dark:text-slate-100">
+      <div className="mx-auto flex min-h-screen w-full min-w-0 max-w-[1920px] flex-col lg:flex-row">
         {user && (
           <aside className="hidden w-72 shrink-0 border-r border-slate-200/90 bg-white/95 text-slate-800 lg:flex lg:flex-col dark:border-slate-800/80 dark:bg-slate-900/90 dark:text-slate-100">
             {/* Campus Brand Header */}
@@ -112,8 +114,18 @@ export default function Layout() {
                     </p>
                     <div className="flex items-center gap-1.5 mt-0.5">
                       <span className="h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-emerald-500/20" />
-                      <span className="truncate text-xs font-medium capitalize text-slate-500 dark:text-slate-400">
-                        {user.role}
+                      <span className="truncate text-xs font-medium text-slate-500 dark:text-slate-400">
+                        {user.isHOD ? (
+                          <span className="font-semibold text-amber-600 dark:text-amber-400">
+                            HOD {user.department?.code ? `(${user.department.code})` : ''}
+                          </span>
+                        ) : user.classTeacherOf?.length > 0 ? (
+                          <span className="font-semibold text-indigo-600 dark:text-indigo-400">
+                            Class Teacher
+                          </span>
+                        ) : (
+                          <span className="capitalize">{user.role}</span>
+                        )}
                       </span>
                     </div>
                   </div>
@@ -174,7 +186,7 @@ export default function Layout() {
         )}
 
         {/* Main Content Shell */}
-        <div className="flex min-h-screen flex-1 flex-col">
+        <div className="flex min-h-screen flex-1 min-w-0 max-w-full flex-col overflow-x-hidden">
           {/* Top Header */}
           <header className="sticky top-0 z-40 border-b border-slate-200/90 bg-white/85 backdrop-blur-md dark:border-slate-800/80 dark:bg-slate-950/85">
             <div className="page-shell py-3 sm:py-3.5">
@@ -308,14 +320,14 @@ export default function Layout() {
           </header>
 
           {/* Main Outlet */}
-          <main className="page-shell flex-1 py-5 sm:py-7 lg:py-8">
+          <main className="page-shell flex-1 py-5 sm:py-7 lg:py-8 min-w-0 max-w-full">
             <ErrorBoundary>
               <Outlet />
             </ErrorBoundary>
           </main>
 
           {/* Footer */}
-          <footer className="page-shell border-t border-slate-200/60 py-5 text-center text-xs text-slate-500 dark:border-slate-800/60 dark:text-slate-400">
+          <footer className="page-shell border-t border-slate-200/60 py-5 text-center text-xs text-slate-500 dark:border-slate-800/60 dark:text-slate-400 min-w-0 max-w-full">
             Smart Campus Attendance Management System — Verified Enterprise Portal
           </footer>
         </div>

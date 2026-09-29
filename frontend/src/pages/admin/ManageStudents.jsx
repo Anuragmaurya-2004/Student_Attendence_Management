@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import api from '../../api/client';
 import { Card, Button, Input, Select, Table, Badge } from '../../components/ui';
 import { validateStudentForm } from '../../validators';
+import { useAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
 import {
   GraduationCap,
@@ -25,6 +26,9 @@ const getClassLabel = (student) => {
 };
 
 export default function ManageStudents() {
+  const { user } = useAuth();
+  const hodDeptId = user?.department?._id || user?.department;
+
   const [students, setStudents] = useState([]);
   const [batches, setBatches] = useState([]);
   const [departments, setDepartments] = useState([]);
@@ -38,7 +42,7 @@ export default function ManageStudents() {
     password: '',
     parentEmail: '',
     gender: 'Male',
-    department: '',
+    department: hodDeptId || '',
     classBatch: '',
     academicYearJoined: '',
     currentAcademicYear: '',
@@ -110,7 +114,7 @@ export default function ManageStudents() {
         password: '',
         parentEmail: '',
         gender: 'Male',
-        department: '',
+        department: hodDeptId || '',
         classBatch: '',
         academicYearJoined: '',
         currentAcademicYear: '',
@@ -315,6 +319,7 @@ export default function ManageStudents() {
               <Select
                 value={form.department}
                 onChange={(e) => setForm({ ...form, department: e.target.value })}
+                disabled={Boolean(user?.isHOD && hodDeptId)}
                 error={errors.department}
               >
                 <option value="">Select Department</option>

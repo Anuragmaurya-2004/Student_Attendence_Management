@@ -7,6 +7,9 @@ const Faculty = require('../models/Faculty');
 const { importFaculty, downloadTemplate } = require('../controllers/facultyImportController');
 const { sendFacultyWelcomeEmail } = require('../services/mailService');
 
+const ClassBatch = require('../models/ClassBatch');
+const { getDepartmentScope } = require('../utils/userScope');
+
 const objectIdSchema = Joi.string().pattern(/^[a-fA-F0-9]{24}$/).required();
 
 const createFacultySchema = Joi.object({
@@ -34,6 +37,7 @@ const createFacultySchema = Joi.object({
   phone: Joi.string().trim().allow('').optional(),
   coursesAssigned: Joi.array().items(Joi.string().pattern(/^[a-fA-F0-9]{24}$/)).optional(),
   classBatchesAssigned: Joi.array().items(Joi.string().pattern(/^[a-fA-F0-9]{24}$/)).optional(),
+  classTeacherOf: Joi.array().items(Joi.string().pattern(/^[a-fA-F0-9]{24}$/)).optional(),
 });
 
 const updateFacultySchema = Joi.object({
@@ -45,6 +49,7 @@ const updateFacultySchema = Joi.object({
   phone: Joi.string().trim().allow('').optional(),
   coursesAssigned: Joi.array().items(Joi.string().pattern(/^[a-fA-F0-9]{24}$/)).optional(),
   classBatchesAssigned: Joi.array().items(Joi.string().pattern(/^[a-fA-F0-9]{24}$/)).optional(),
+  classTeacherOf: Joi.array().items(Joi.string().pattern(/^[a-fA-F0-9]{24}$/)).optional(),
 }).min(1);
 
 const validateRequest = (schema, req, res, next) => {
@@ -70,9 +75,15 @@ const upload = multer({
 router.use(protect);
 
 router.get('/', authorize('admin'), async (req, res) => {
+  const deptScope = getDepartmentScope(req);
   const filter = {};
-  if (req.query.department) filter.department = req.query.department;
-  const list = await Faculty.find(filter).populate('department coursesAssigned classBatchesAssigned');
+  if (deptScope) {
+    filter.department = deptScope;
+  } else if (req.query.department) {
+    filter.department = req.query.department;
+  }
+  const list = await Faculty.find(filter)
+    .populate('department coursesAssigned classBatchesAssigned classTeacherOf');
   res.json(list);
 });
 
@@ -80,14 +91,32 @@ router.get('/:id', async (req, res) => {
   if (req.user.role === 'faculty' && req.user.id !== req.params.id) {
     return res.status(403).json({ message: 'Forbidden' });
   }
-  const faculty = await Faculty.findById(req.params.id).populate('department coursesAssigned classBatchesAssigned');
+  const faculty = await Faculty.findById(req.params.id)
+    .populate('department coursesAssigned classBatchesAssigned classTeacherOf');
   if (!faculty) return res.status(404).json({ message: 'Not found' });
+
+  const deptScope = getDepartmentScope(req);
+  if (deptScope && faculty.department?._id?.toString() !== deptScope) {
+    return res.status(403).json({ message: 'Forbidden: Faculty is outside your department scope.' });
+  }
+
   res.json(faculty);
 });
 
 router.post('/', authorize('admin'), (req, res, next) => validateRequest(createFacultySchema, req, res, next), async (req, res) => {
   try {
-    const faculty = await Faculty.create({ ...req.body, mustChangePassword: true });
+    const deptScope = getDepartmentScope(req);
+    const data = { ...req.body };
+    if (deptScope) data.department = deptScope;
+
+    const faculty = await Faculty.create({ ...data, mustChangePassword: true });
+
+    if (faculty.classTeacherOf?.length > 0) {
+      await ClassBatch.updateMany(
+        { _id: { $in: faculty.classTeacherOf } },
+        { classTeacher: faculty._id }
+      );
+    }
 
     // Keep account creation independent from SMTP availability: the new faculty can still
     // be given credentials manually if email delivery is skipped or fails.
@@ -110,7 +139,10 @@ router.post('/', authorize('admin'), (req, res, next) => validateRequest(createF
         : emailStatus === 'skipped'
           ? 'Faculty account created, but SMTP is not configured. Share the password manually.'
           : 'Faculty account created, but the welcome email failed. Share the password manually.';
-    res.status(201).json({ faculty, emailStatus, message: responseMessage });
+
+    const populated = await Faculty.findById(faculty._id)
+      .populate('department coursesAssigned classBatchesAssigned classTeacherOf');
+    res.status(201).json({ faculty: populated, emailStatus, message: responseMessage });
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
@@ -121,8 +153,36 @@ router.get('/import/template', authorize('admin'), downloadTemplate);
 
 router.put('/:id', authorize('admin'), (req, res, next) => validateRequest(updateFacultySchema, req, res, next), async (req, res) => {
   try {
-    const faculty = await Faculty.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    if (!faculty) return res.status(404).json({ message: 'Faculty not found' });
+    const deptScope = getDepartmentScope(req);
+    const existing = await Faculty.findById(req.params.id);
+    if (!existing) return res.status(404).json({ message: 'Faculty not found' });
+    if (deptScope && existing.department.toString() !== deptScope) {
+      return res.status(403).json({ message: 'Forbidden: You can only edit faculty in your department.' });
+    }
+
+    const data = { ...req.body };
+    if (deptScope) data.department = deptScope;
+
+    if (req.body.classTeacherOf) {
+      const prevBatches = (existing.classTeacherOf || []).map((b) => b.toString());
+      const newBatches = req.body.classTeacherOf.map((b) => b.toString());
+      const removed = prevBatches.filter((b) => !newBatches.includes(b));
+      if (removed.length > 0) {
+        await ClassBatch.updateMany(
+          { _id: { $in: removed }, classTeacher: existing._id },
+          { $unset: { classTeacher: '' } }
+        );
+      }
+      if (newBatches.length > 0) {
+        await ClassBatch.updateMany(
+          { _id: { $in: newBatches } },
+          { classTeacher: existing._id }
+        );
+      }
+    }
+
+    const faculty = await Faculty.findByIdAndUpdate(req.params.id, data, { new: true })
+      .populate('department coursesAssigned classBatchesAssigned classTeacherOf');
     res.json(faculty);
   } catch (err) {
     res.status(400).json({ message: err.message });
@@ -130,6 +190,13 @@ router.put('/:id', authorize('admin'), (req, res, next) => validateRequest(updat
 });
 
 router.delete('/:id', authorize('admin'), async (req, res) => {
+  const deptScope = getDepartmentScope(req);
+  const existing = await Faculty.findById(req.params.id);
+  if (!existing) return res.status(404).json({ message: 'Faculty not found' });
+  if (deptScope && existing.department.toString() !== deptScope) {
+    return res.status(403).json({ message: 'Forbidden: You can only delete faculty in your department.' });
+  }
+  await ClassBatch.updateMany({ classTeacher: existing._id }, { $unset: { classTeacher: '' } });
   await Faculty.findByIdAndDelete(req.params.id);
   res.json({ message: 'Deleted' });
 });

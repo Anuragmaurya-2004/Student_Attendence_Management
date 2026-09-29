@@ -52,7 +52,12 @@ const facultyLogin = async (req, res) => {
   }
 
   const { email, password } = req.body;
-  const faculty = await Faculty.findOne({ email }).select('+password');
+  const { isHOD, isPrincipal } = require('../utils/userScope');
+  const faculty = await Faculty.findOne({ email })
+    .select('+password')
+    .populate('department', 'name code')
+    .populate('classTeacherOf', 'name semester');
+
   console.log('[Backend Auth] faculty lookup result', {
     found: !!faculty,
     email,
@@ -72,7 +77,13 @@ const facultyLogin = async (req, res) => {
       name: faculty.name,
       email: faculty.email,
       role: faculty.role,
+      designation: faculty.designation,
       department: faculty.department,
+      classTeacherOf: faculty.classTeacherOf || [],
+      coursesAssigned: faculty.coursesAssigned || [],
+      classBatchesAssigned: faculty.classBatchesAssigned || [],
+      isHOD: isHOD({ role: faculty.role, doc: faculty }),
+      isPrincipal: isPrincipal({ doc: faculty }),
     },
     mustChangePassword: Boolean(faculty.mustChangePassword),
   });
@@ -202,7 +213,27 @@ const changeFacultyPassword = async (req, res) => {
 // @desc Get currently logged-in user's profile
 // @route GET /api/auth/me
 const getMe = async (req, res) => {
-  res.json({ id: req.user.id, role: req.user.role, ...req.user.doc.toObject({ getters: true }), password: undefined });
+  const { isHOD, isPrincipal } = require('../utils/userScope');
+  if (req.user.role === 'student') {
+    const student = await Student.findById(req.user.id).populate('department classBatch currentAcademicYear');
+    return res.json({ id: student._id, role: 'student', ...student.toObject(), password: undefined });
+  }
+  const faculty = await Faculty.findById(req.user.id)
+    .populate('department', 'name code')
+    .populate('classTeacherOf', 'name semester')
+    .populate('classBatchesAssigned', 'name semester')
+    .populate('coursesAssigned', 'name code type');
+
+  if (!faculty) return res.status(404).json({ message: 'User not found' });
+
+  res.json({
+    id: faculty._id,
+    role: faculty.role,
+    ...faculty.toObject(),
+    isHOD: isHOD({ role: faculty.role, doc: faculty }),
+    isPrincipal: isPrincipal({ doc: faculty }),
+    password: undefined,
+  });
 };
 
 module.exports = {

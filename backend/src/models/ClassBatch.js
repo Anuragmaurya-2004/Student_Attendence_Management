@@ -11,6 +11,7 @@ const classBatchSchema = new mongoose.Schema(
       longitude: { type: Number, min: -180, max: 180 },
       radiusMeters: { type: Number, min: 1 },
     },
+    classTeacher: { type: mongoose.Schema.Types.ObjectId, ref: 'Faculty' },
   },
   { timestamps: true }
 );
