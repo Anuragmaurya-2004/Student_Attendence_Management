@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import api from '../../api/client';
-import { Card, Badge, Table } from '../../components/ui';
+import { Card, Badge, Table, CircularProgressRing } from '../../components/ui';
 import { SkeletonCard, SkeletonTable } from '../../components/Skeleton';
 import {
   ResponsiveContainer,
@@ -169,12 +169,13 @@ export default function AdminDashboard() {
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {cards.map((card) => {
+          {cards.map((card, idx) => {
             const Icon = card.icon;
+            const staggerClass = idx === 0 ? 'animate-stagger-1' : idx === 1 ? 'animate-stagger-2' : idx === 2 ? 'animate-stagger-3' : 'animate-stagger-4';
             return (
               <div
                 key={card.key}
-                className="rounded-3xl border border-slate-200/90 bg-white/95 p-5 shadow-[0_10px_30px_rgba(15,23,42,0.03)] transition-all hover:-translate-y-0.5 hover:shadow-md dark:border-slate-800/90 dark:bg-slate-900/90"
+                className={`rounded-3xl border border-slate-200/90 bg-white/95 p-5 shadow-[0_10px_30px_rgba(15,23,42,0.03)] transition-all hover:-translate-y-0.5 hover:shadow-md dark:border-slate-800/90 dark:bg-slate-900/90 ${staggerClass}`}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -202,14 +203,17 @@ export default function AdminDashboard() {
             <div className="h-60 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800" />
           ) : (
             <div className="space-y-6">
-              <div className="flex items-end justify-between gap-4">
-                <div>
-                  <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Cumulative Compliance</p>
-                  <div className="mt-1 flex items-baseline gap-2">
-                    <span className="text-4xl font-black tracking-tight text-slate-900 dark:text-white">
-                      {healthScore}%
-                    </span>
-                    <span className="text-xs text-slate-500">attendance compliance</span>
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <CircularProgressRing value={healthScore} size={68} strokeWidth={6} />
+                  <div>
+                    <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Cumulative Compliance</p>
+                    <div className="mt-0.5 flex items-baseline gap-2">
+                      <span className="text-3xl font-black tracking-tight text-slate-900 dark:text-white tnum">
+                        {healthScore}%
+                      </span>
+                      <span className="text-xs text-slate-500">campus average</span>
+                    </div>
                   </div>
                 </div>
                 <Badge

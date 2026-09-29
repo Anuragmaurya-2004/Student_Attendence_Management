@@ -1,7 +1,7 @@
-import React, { useEffect, useState, useMemo, useRef } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import api from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
-import { Card, Badge, Table, Button } from '../../components/ui';
+import { Card, Badge, Table, Button, CircularProgressRing } from '../../components/ui';
 import { SkeletonCard, SkeletonTable } from '../../components/Skeleton';
 import { format, differenceInCalendarDays } from 'date-fns';
 import {
@@ -224,17 +224,22 @@ export default function StudentAttendance() {
           </div>
         ) : (
           <div className="mt-6 grid gap-3 sm:grid-cols-3">
-            <div className="rounded-2xl border border-white/15 bg-white/10 p-3.5 backdrop-blur-md">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-indigo-100">Cumulative Average</p>
-              <div className="mt-1 flex items-baseline gap-2">
-                <p className="text-2xl font-extrabold text-white">{overallPct}%</p>
-                <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                  overallPct >= 75 ? 'bg-emerald-400/20 text-emerald-200' : 'bg-rose-400/20 text-rose-200'
-                }`}>
-                  {overallPct >= 75 ? 'Eligible' : 'Defaulter Alert'}
-                </span>
+            <div className="flex items-center justify-between rounded-2xl border border-white/15 bg-white/10 p-3.5 backdrop-blur-md">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-indigo-100">Cumulative Average</p>
+                <div className="mt-1 flex items-baseline gap-2">
+                  <p className="text-2xl font-extrabold text-white tnum">{overallPct}%</p>
+                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                    overallPct >= 75 ? 'bg-emerald-400/20 text-emerald-200' : 'bg-rose-400/20 text-rose-200'
+                  }`}>
+                    {overallPct >= 75 ? 'Eligible' : 'Defaulter Alert'}
+                  </span>
+                </div>
+                <p className="text-xs text-indigo-200">{totalAttended} of {totalHeld} sessions credited</p>
               </div>
-              <p className="text-xs text-indigo-200">{totalAttended} of {totalHeld} sessions credited</p>
+              <div className="bg-white/10 rounded-2xl p-1.5 backdrop-blur-sm">
+                <CircularProgressRing value={overallPct} size={54} strokeWidth={5} showLabel={false} />
+              </div>
             </div>
 
             <div className="rounded-2xl border border-white/15 bg-white/10 p-3.5 backdrop-blur-md">

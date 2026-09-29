@@ -72,8 +72,8 @@ export function Table({ columns, data = [], emptyText = 'No records found', clas
   return (
     <div className={`overflow-x-auto rounded-2xl border border-slate-200/90 bg-white/70 shadow-sm dark:border-slate-800 dark:bg-slate-950/40 ${className}`}>
       <table className="min-w-full text-left text-sm">
-        <thead>
-          <tr className="border-b border-slate-200/90 bg-slate-50/80 font-semibold text-slate-600 dark:border-slate-800 dark:bg-slate-900/70 dark:text-slate-300">
+        <thead className="sticky top-0 z-10 backdrop-blur-md">
+          <tr className="border-b border-slate-200/90 bg-slate-50/95 font-semibold text-slate-600 dark:border-slate-800 dark:bg-slate-900/95 dark:text-slate-300">
             {columns.map((col, idx) => (
               <th
                 key={col.key || idx}
@@ -100,7 +100,7 @@ export function Table({ columns, data = [], emptyText = 'No records found', clas
             data.map((row, rowIdx) => (
               <tr
                 key={row._id || rowIdx}
-                className="transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/40"
+                className="group transition-colors hover:bg-slate-50/90 dark:hover:bg-slate-800/50"
               >
                 {columns.map((col, colIdx) => (
                   <td
@@ -117,6 +117,59 @@ export function Table({ columns, data = [], emptyText = 'No records found', clas
           )}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+export function CircularProgressRing({
+  value = 0,
+  size = 64,
+  strokeWidth = 6,
+  className = '',
+  showLabel = true,
+}) {
+  const radius = (size - strokeWidth) / 2;
+  const circumference = radius * 2 * Math.PI;
+  const clampedValue = Math.min(100, Math.max(0, value));
+  const offset = circumference - (clampedValue / 100) * circumference;
+
+  let colorClass = 'text-emerald-500';
+  if (clampedValue < 65) {
+    colorClass = 'text-rose-500';
+  } else if (clampedValue < 75) {
+    colorClass = 'text-amber-500';
+  }
+
+  return (
+    <div className={`relative inline-flex items-center justify-center ${className}`}>
+      <svg width={size} height={size} className="-rotate-90 transform">
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          stroke="currentColor"
+          strokeWidth={strokeWidth}
+          fill="transparent"
+          className="text-slate-200/80 dark:text-slate-800"
+        />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          stroke="currentColor"
+          strokeWidth={strokeWidth}
+          fill="transparent"
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          strokeLinecap="round"
+          className={`transition-all duration-700 ease-out ${colorClass}`}
+        />
+      </svg>
+      {showLabel && (
+        <span className="absolute text-xs font-black text-slate-800 dark:text-slate-100 tnum">
+          {Math.round(clampedValue)}%
+        </span>
+      )}
     </div>
   );
 }

@@ -3,6 +3,8 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme, setTheme } from '../theme';
 import CommandPalette from './CommandPalette';
+import NotificationCenter from './NotificationCenter';
+import ErrorBoundary from './ErrorBoundary';
 import {
   LayoutDashboard,
   Settings,
@@ -234,6 +236,9 @@ export default function Layout() {
                     {darkMode ? <Sun className="h-4 w-4 text-amber-400" /> : <Moon className="h-4 w-4 text-indigo-500" />}
                   </button>
 
+                  {/* Notification Center Popover */}
+                  {user && <NotificationCenter />}
+
                   {user && (
                     <>
                       <div className="hidden items-center gap-2 rounded-full border border-slate-200/90 bg-slate-50/80 px-3 py-1 text-xs text-slate-700 shadow-sm dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-200 md:flex">
@@ -304,7 +309,9 @@ export default function Layout() {
 
           {/* Main Outlet */}
           <main className="page-shell flex-1 py-5 sm:py-7 lg:py-8">
-            <Outlet />
+            <ErrorBoundary>
+              <Outlet />
+            </ErrorBoundary>
           </main>
 
           {/* Footer */}
