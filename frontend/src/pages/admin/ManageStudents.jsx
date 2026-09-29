@@ -30,6 +30,7 @@ export default function ManageStudents() {
   const [departments, setDepartments] = useState([]);
   const [years, setYears] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [classFilter, setClassFilter] = useState('all');
   const [form, setForm] = useState({
     name: '',
     rollNo: '',
@@ -176,17 +177,20 @@ export default function ManageStudents() {
   };
 
   const filteredStudents = useMemo(() => {
-    if (!searchQuery.trim()) return students;
-    const q = searchQuery.toLowerCase();
-    return students.filter(
-      (s) =>
+    return students.filter((s) => {
+      const classLabel = getClassLabel(s);
+      if (classFilter !== 'all' && classLabel !== classFilter) return false;
+      if (!searchQuery.trim()) return true;
+      const q = searchQuery.toLowerCase();
+      return (
         s.name?.toLowerCase().includes(q) ||
         s.rollNo?.toLowerCase().includes(q) ||
         s.email?.toLowerCase().includes(q) ||
         s.classBatch?.name?.toLowerCase().includes(q) ||
         s.department?.name?.toLowerCase().includes(q)
-    );
-  }, [students, searchQuery]);
+      );
+    });
+  }, [students, searchQuery, classFilter]);
 
   const groupedStudents = useMemo(() => {
     const departmentMap = {};
@@ -423,19 +427,39 @@ export default function ManageStudents() {
         </Card>
       </div>
 
-      {/* Cohort Explorer Card with Search */}
+      {/* Cohort Explorer Card with Search and Class Filter Pills */}
       <Card
         title={`All Enrolled Students (${filteredStudents.length})`}
         subtitle="Grouped by academic department and cohort year"
         actions={
-          <div className="relative w-64">
-            <Input
-              placeholder="Search by name, roll no, class..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="!py-1.5 !text-xs !pl-8"
-            />
-            <Search className="pointer-events-none absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* Quick Filter Pills */}
+            <div className="flex items-center gap-1 rounded-xl border border-slate-200/90 bg-slate-50 p-1 dark:border-slate-800 dark:bg-slate-800/60">
+              {['all', 'FE', 'SE', 'TE', 'BE'].map((lvl) => (
+                <button
+                  key={lvl}
+                  type="button"
+                  onClick={() => setClassFilter(lvl)}
+                  className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
+                    classFilter === lvl
+                      ? 'bg-brand-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                  }`}
+                >
+                  {lvl === 'all' ? 'All' : lvl}
+                </button>
+              ))}
+            </div>
+
+            <div className="relative w-52 sm:w-64">
+              <Input
+                placeholder="Search by name, roll no..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="!py-1.5 !text-xs !pl-8"
+              />
+              <Search className="pointer-events-none absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
+            </div>
           </div>
         }
       >

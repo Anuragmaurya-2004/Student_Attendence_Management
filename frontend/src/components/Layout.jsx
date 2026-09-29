@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme, setTheme } from '../theme';
+import CommandPalette from './CommandPalette';
 import {
   LayoutDashboard,
   Settings,
@@ -20,6 +21,7 @@ import {
   X,
   BookOpen,
   CheckCircle2,
+  Search,
 } from 'lucide-react';
 
 const linksByRole = {
@@ -53,6 +55,18 @@ export default function Layout() {
   const links = user ? linksByRole[user.role] || [] : [];
   const darkMode = useTheme();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [cmdOpen, setCmdOpen] = useState(false);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        setCmdOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const applyTheme = (isDark) => {
     setTheme(isDark);
@@ -193,6 +207,22 @@ export default function Layout() {
 
                 {/* Right Header Controls */}
                 <div className="flex items-center gap-2 sm:gap-3">
+                  {/* Global Search / Command Palette Trigger */}
+                  {user && (
+                    <button
+                      type="button"
+                      onClick={() => setCmdOpen(true)}
+                      className="flex items-center gap-2 rounded-xl border border-slate-200/90 bg-slate-50/80 px-2.5 sm:px-3 py-1.5 text-xs text-slate-500 shadow-sm transition hover:border-brand-500/50 hover:bg-white hover:text-slate-900 dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-400 dark:hover:border-brand-500/50 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+                      title="Quick Search & Navigation (Ctrl+K)"
+                    >
+                      <Search className="h-3.5 w-3.5 text-slate-400" />
+                      <span className="hidden sm:inline">Search...</span>
+                      <kbd className="hidden sm:inline-block rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-semibold text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400">
+                        Ctrl K
+                      </kbd>
+                    </button>
+                  )}
+
                   {/* Theme Switcher Button (Visible Everywhere, Mobile & Desktop) */}
                   <button
                     type="button"
@@ -283,6 +313,9 @@ export default function Layout() {
           </footer>
         </div>
       </div>
+
+      {/* Global Command Palette Modal */}
+      <CommandPalette isOpen={cmdOpen} onClose={() => setCmdOpen(false)} />
     </div>
   );
 }

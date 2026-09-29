@@ -1,6 +1,16 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import api from '../../api/client';
 import { Card, Badge, Table } from '../../components/ui';
+import { SkeletonCard, SkeletonTable } from '../../components/Skeleton';
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  Cell,
+} from 'recharts';
 import {
   Building2,
   Users,
@@ -8,6 +18,7 @@ import {
   BookOpen,
   Activity,
   CheckCircle2,
+  TrendingUp,
 } from 'lucide-react';
 
 const statMeta = {
@@ -37,6 +48,7 @@ export default function AdminDashboard() {
   const [stats, setStats] = useState(null);
   const [defaulters, setDefaulters] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [defaulterFilter, setDefaulterFilter] = useState('all'); // 'all', 'critical', 'theory', 'practical'
 
   useEffect(() => {
     (async () => {
@@ -63,17 +75,6 @@ export default function AdminDashboard() {
     })();
   }, []);
 
-  if (loading) {
-    return (
-      <div className="flex min-h-[300px] items-center justify-center rounded-3xl border border-slate-200/80 bg-white/80 p-8 text-sm font-medium text-slate-500 shadow-soft dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-400">
-        <div className="flex items-center gap-3">
-          <Activity className="h-5 w-5 animate-pulse text-brand-600 dark:text-brand-400" />
-          <span>Synchronizing campus metrics...</span>
-        </div>
-      </div>
-    );
-  }
-
   const cards = Object.entries(statMeta).map(([key, meta]) => ({
     key,
     ...meta,
@@ -81,14 +82,40 @@ export default function AdminDashboard() {
   }));
 
   // Calculate distinct defaulter students for accurate health percentage
-  const uniqueDefaulterStudents = new Set(defaulters.map((d) => d.rollNo || d.studentName)).size;
+  const uniqueDefaulterStudents = useMemo(() => {
+    return new Set(defaulters.map((d) => d.rollNo || d.studentName)).size;
+  }, [defaulters]);
+
   const healthScore = stats?.students
     ? Math.max(0, Math.min(100, Math.round(100 - (uniqueDefaulterStudents / stats.students) * 100)))
     : 100;
 
-  const priorityAlerts = [...defaulters]
-    .sort((a, b) => a.attendancePercent - b.attendancePercent)
-    .slice(0, 4);
+  // Breakdown metrics for visualization
+  const attendanceDistributionData = useMemo(() => {
+    const totalStudents = stats?.students || 0;
+    const criticalCount = defaulters.filter((d) => d.attendancePercent < 60).length;
+    const warningCount = defaulters.filter((d) => d.attendancePercent >= 60 && d.attendancePercent < 75).length;
+    const compliantCount = Math.max(0, totalStudents - uniqueDefaulterStudents);
+
+    return [
+      { category: 'Compliant (>=75%)', count: compliantCount, fill: '#10b981' },
+      { category: 'Watchlist (60-74%)', count: warningCount, fill: '#f59e0b' },
+      { category: 'Critical (<60%)', count: criticalCount, fill: '#f43f5e' },
+    ];
+  }, [stats, defaulters, uniqueDefaulterStudents]);
+
+  const priorityAlerts = useMemo(() => {
+    return [...defaulters]
+      .sort((a, b) => a.attendancePercent - b.attendancePercent)
+      .slice(0, 4);
+  }, [defaulters]);
+
+  const filteredDefaulters = useMemo(() => {
+    if (defaulterFilter === 'critical') return defaulters.filter((d) => d.attendancePercent < 60);
+    if (defaulterFilter === 'theory') return defaulters.filter((d) => d.type === 'theory');
+    if (defaulterFilter === 'practical') return defaulters.filter((d) => d.type === 'practical');
+    return defaulters;
+  }, [defaulters, defaulterFilter]);
 
   return (
     <div className="space-y-6">
@@ -132,86 +159,119 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* 4 Stat Cards */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {cards.map((card) => {
-          const Icon = card.icon;
-          return (
-            <div
-              key={card.key}
-              className="rounded-3xl border border-slate-200/90 bg-white/95 p-5 shadow-[0_10px_30px_rgba(15,23,42,0.03)] transition-all hover:-translate-y-0.5 hover:shadow-md dark:border-slate-800/90 dark:bg-slate-900/90"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                    {card.label}
-                  </p>
-                  <p className="mt-2 text-3xl font-extrabold text-slate-900 dark:text-white">
-                    {card.value}
-                  </p>
-                </div>
-                <div className={`flex h-11 w-11 items-center justify-center rounded-2xl border shadow-sm ${card.tone}`}>
-                  <Icon className="h-5 w-5" />
+      {/* 4 Stat Cards with Skeletons */}
+      {loading ? (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </div>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {cards.map((card) => {
+            const Icon = card.icon;
+            return (
+              <div
+                key={card.key}
+                className="rounded-3xl border border-slate-200/90 bg-white/95 p-5 shadow-[0_10px_30px_rgba(15,23,42,0.03)] transition-all hover:-translate-y-0.5 hover:shadow-md dark:border-slate-800/90 dark:bg-slate-900/90"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                      {card.label}
+                    </p>
+                    <p className="mt-2 text-3xl font-extrabold text-slate-900 dark:text-white">
+                      {card.value}
+                    </p>
+                  </div>
+                  <div className={`flex h-11 w-11 items-center justify-center rounded-2xl border shadow-sm ${card.tone}`}>
+                    <Icon className="h-5 w-5" />
+                  </div>
                 </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Health Metric & Priority Alerts Grid */}
       <div className="grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
         <Card title="Campus Attendance Health" subtitle="Overall student presence across ongoing academic batches">
-          <div className="space-y-6">
-            <div className="flex items-end justify-between gap-4">
-              <div>
-                <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Cumulative Compliance</p>
-                <div className="mt-1 flex items-baseline gap-2">
-                  <span className="text-4xl font-black tracking-tight text-slate-900 dark:text-white">
-                    {healthScore}%
-                  </span>
-                  <span className="text-xs text-slate-500">attendance compliance</span>
+          {loading ? (
+            <div className="h-60 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800" />
+          ) : (
+            <div className="space-y-6">
+              <div className="flex items-end justify-between gap-4">
+                <div>
+                  <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Cumulative Compliance</p>
+                  <div className="mt-1 flex items-baseline gap-2">
+                    <span className="text-4xl font-black tracking-tight text-slate-900 dark:text-white">
+                      {healthScore}%
+                    </span>
+                    <span className="text-xs text-slate-500">attendance compliance</span>
+                  </div>
+                </div>
+                <Badge
+                  color={healthScore >= 80 ? 'green' : healthScore >= 65 ? 'yellow' : 'red'}
+                  dot
+                >
+                  {healthScore >= 80 ? 'Optimal Status' : healthScore >= 65 ? 'Watchlist' : 'Critical Action'}
+                </Badge>
+              </div>
+
+              {/* Health Progress Track */}
+              <div className="h-3 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+                <div
+                  className={`h-full rounded-full transition-all duration-500 ${
+                    healthScore >= 80 ? 'bg-emerald-500' : healthScore >= 65 ? 'bg-amber-500' : 'bg-rose-500'
+                  }`}
+                  style={{ width: `${healthScore}%` }}
+                />
+              </div>
+
+              {/* Attendance Distribution Chart */}
+              <div className="rounded-2xl border border-slate-100 bg-slate-50/60 p-4 dark:border-slate-800 dark:bg-slate-800/30">
+                <div className="flex items-center gap-2 mb-2 text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                  <TrendingUp className="h-3.5 w-3.5 text-brand-600" /> Cohort Distribution Overview
+                </div>
+                <div className="h-36 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={attendanceDistributionData} layout="vertical" margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+                      <XAxis type="number" tick={{ fontSize: 10, fill: '#64748b' }} />
+                      <YAxis dataKey="category" type="category" width={115} tick={{ fontSize: 10, fill: '#64748b' }} />
+                      <Tooltip
+                        content={({ active, payload }) => {
+                          if (!active || !payload?.length) return null;
+                          const d = payload[0].payload;
+                          return (
+                            <div className="rounded-lg border border-slate-200 bg-white p-2 text-xs shadow-md dark:border-slate-700 dark:bg-slate-900">
+                              <span className="font-semibold text-slate-900 dark:text-white">{d.category}:</span> {d.count} records
+                            </div>
+                          );
+                        }}
+                      />
+                      <Bar dataKey="count" radius={[0, 6, 6, 0]}>
+                        {attendanceDistributionData.map((entry, idx) => (
+                          <Cell key={`cell-${idx}`} fill={entry.fill} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
                 </div>
               </div>
-              <Badge
-                color={healthScore >= 80 ? 'green' : healthScore >= 65 ? 'yellow' : 'red'}
-                dot
-              >
-                {healthScore >= 80 ? 'Optimal Status' : healthScore >= 65 ? 'Watchlist' : 'Critical Action'}
-              </Badge>
             </div>
-
-            {/* Health Progress Track */}
-            <div className="h-3 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-              <div
-                className={`h-full rounded-full transition-all duration-500 ${
-                  healthScore >= 80 ? 'bg-emerald-500' : healthScore >= 65 ? 'bg-amber-500' : 'bg-rose-500'
-                }`}
-                style={{ width: `${healthScore}%` }}
-              />
-            </div>
-
-            {/* Quick Stats Grid */}
-            <div className="grid gap-3 sm:grid-cols-3">
-              <div className="rounded-2xl border border-indigo-100 bg-indigo-50/70 p-3.5 dark:border-indigo-900/40 dark:bg-indigo-950/30">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-indigo-700 dark:text-indigo-300">Students</span>
-                <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-white">{stats?.students ?? 0}</p>
-              </div>
-              <div className="rounded-2xl border border-sky-100 bg-sky-50/70 p-3.5 dark:border-sky-900/40 dark:bg-sky-950/30">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-sky-700 dark:text-sky-300">Faculty</span>
-                <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-white">{stats?.faculty ?? 0}</p>
-              </div>
-              <div className="rounded-2xl border border-purple-100 bg-purple-50/70 p-3.5 dark:border-purple-900/40 dark:bg-purple-950/30">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-purple-700 dark:text-purple-300">Courses</span>
-                <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-white">{stats?.courses ?? 0}</p>
-              </div>
-            </div>
-          </div>
+          )}
         </Card>
 
         {/* Priority Alerts Card */}
         <Card title="Immediate Priority Alerts" subtitle="Lowest attendance requiring intervention">
-          {priorityAlerts.length === 0 ? (
+          {loading ? (
+            <div className="space-y-3">
+              <div className="h-16 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800" />
+              <div className="h-16 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800" />
+            </div>
+          ) : priorityAlerts.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-2 py-8 text-center text-slate-500 dark:text-slate-400">
               <CheckCircle2 className="h-8 w-8 text-emerald-500" />
               <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">No urgent alerts</p>
@@ -250,41 +310,68 @@ export default function AdminDashboard() {
         </Card>
       </div>
 
-      {/* Defaulters Full List Table */}
+      {/* Defaulters Full List Table with Quick Filter Pills */}
       <Card
         title={`All Current Course Defaulters (${defaulters.length})`}
         subtitle="Students falling below their mandatory course threshold"
+        action={
+          <div className="flex flex-wrap items-center gap-1.5">
+            {[
+              { key: 'all', label: `All (${defaulters.length})` },
+              { key: 'critical', label: 'Critical (<60%)' },
+              { key: 'theory', label: 'Theory' },
+              { key: 'practical', label: 'Practicals' },
+            ].map((pill) => (
+              <button
+                key={pill.key}
+                type="button"
+                onClick={() => setDefaulterFilter(pill.key)}
+                className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
+                  defaulterFilter === pill.key
+                    ? 'bg-brand-600 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
+                }`}
+              >
+                {pill.label}
+              </button>
+            ))}
+          </div>
+        }
       >
-        <Table
-          columns={[
-            { key: 'rollNo', header: 'Roll No' },
-            { key: 'studentName', header: 'Student Name' },
-            { key: 'courseName', header: 'Course / Subject' },
-            {
-              key: 'type',
-              header: 'Type',
-              render: (r) => (
-                <Badge color={r.type === 'practical' ? 'blue' : r.type === 'project' ? 'purple' : 'gray'}>
-                  {r.type}
-                </Badge>
-              ),
-            },
-            {
-              key: 'attendancePercent',
-              header: 'Attendance %',
-              render: (r) => (
-                <div className="flex items-center gap-2">
-                  <Badge color="red" dot>{r.attendancePercent}%</Badge>
-                  <span className="text-xs text-slate-400 dark:text-slate-500">
-                    (min {r.threshold || 75}%)
-                  </span>
-                </div>
-              ),
-            },
-          ]}
-          data={defaulters}
-          emptyText="No defaulters currently. All students are meeting attendance thresholds."
-        />
+        {loading ? (
+          <SkeletonTable rows={5} cols={5} />
+        ) : (
+          <Table
+            columns={[
+              { key: 'rollNo', header: 'Roll No' },
+              { key: 'studentName', header: 'Student Name' },
+              { key: 'courseName', header: 'Course / Subject' },
+              {
+                key: 'type',
+                header: 'Type',
+                render: (r) => (
+                  <Badge color={r.type === 'practical' ? 'blue' : r.type === 'project' ? 'purple' : 'gray'}>
+                    {r.type}
+                  </Badge>
+                ),
+              },
+              {
+                key: 'attendancePercent',
+                header: 'Attendance %',
+                render: (r) => (
+                  <div className="flex items-center gap-2">
+                    <Badge color="red" dot>{r.attendancePercent}%</Badge>
+                    <span className="text-xs text-slate-400 dark:text-slate-500">
+                      (min {r.threshold || 75}%)
+                    </span>
+                  </div>
+                ),
+              },
+            ]}
+            data={filteredDefaulters}
+            emptyText="No defaulters found for the selected filter."
+          />
+        )}
       </Card>
     </div>
   );
