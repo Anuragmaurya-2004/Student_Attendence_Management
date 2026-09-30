@@ -80,7 +80,10 @@ export default function SessionDetail() {
     try {
       const { data } = await api.post(`/sessions/${id}/qr`);
       setQr(data);
-      if (showToast) toast.success('Dynamic rotating QR code activated');
+      if (showToast) {
+        toast.success('Dynamic rotating QR code activated');
+        window.dispatchEvent(new Event('refresh-notifications'));
+      }
       if (showToast) loadSession();
     } catch (err) {
       if (showToast) toast.error(err.response?.data?.message || 'Failed to generate QR');
@@ -137,6 +140,7 @@ export default function SessionDetail() {
     try {
       await api.post('/attendance/manual', { sessionId: id, studentId, status });
       toast.success('Attendance updated');
+      window.dispatchEvent(new Event('refresh-notifications'));
       loadAttendance();
     } catch (err) {
       toast.error('Failed to update attendance');

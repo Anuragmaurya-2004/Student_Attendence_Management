@@ -149,6 +149,7 @@ export const batchSchema = Joi.object({
     'number.min': 'Semester must be greater than 0.',
   }),
   academicYear: Joi.string().required().messages({ 'string.empty': 'Academic year is required.' }),
+  classTeacher: Joi.string().allow('').optional(),
 });
 
 export const courseSchema = Joi.object({

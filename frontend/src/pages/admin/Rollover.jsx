@@ -77,6 +77,7 @@ export default function Rollover() {
       });
       setSummary(data.summary);
       toast.success('Academic rollover executed successfully!');
+      window.dispatchEvent(new Event('refresh-notifications'));
       load();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Rollover process failed');

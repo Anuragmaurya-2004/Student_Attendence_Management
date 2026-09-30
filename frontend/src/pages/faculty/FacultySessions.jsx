@@ -102,6 +102,7 @@ export default function FacultySessions() {
     try {
       await api.post('/sessions', form);
       toast.success('Lecture session created successfully');
+      window.dispatchEvent(new Event('refresh-notifications'));
       load();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to create session');

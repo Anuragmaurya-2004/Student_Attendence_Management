@@ -16,6 +16,7 @@ const facultySchema = new mongoose.Schema(
     department: { type: mongoose.Schema.Types.ObjectId, ref: 'Department', required: true },
     coursesAssigned: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Course' }],
     classBatchesAssigned: [{ type: mongoose.Schema.Types.ObjectId, ref: 'ClassBatch' }],
+    classTeacherOf: [{ type: mongoose.Schema.Types.ObjectId, ref: 'ClassBatch' }],
     role: { type: String, enum: ['faculty', 'admin'], default: 'faculty' },
     mustChangePassword: { type: Boolean, default: false },
     passwordChangedAt: { type: Date },

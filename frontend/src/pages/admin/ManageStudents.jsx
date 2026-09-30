@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import api from '../../api/client';
 import { Card, Button, Input, Select, Table, Badge } from '../../components/ui';
 import { validateStudentForm } from '../../validators';
+import { useAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
 import {
   GraduationCap,
@@ -25,6 +26,9 @@ const getClassLabel = (student) => {
 };
 
 export default function ManageStudents() {
+  const { user } = useAuth();
+  const hodDeptId = user?.department?._id || user?.department;
+
   const [students, setStudents] = useState([]);
   const [batches, setBatches] = useState([]);
   const [departments, setDepartments] = useState([]);
@@ -38,7 +42,7 @@ export default function ManageStudents() {
     password: '',
     parentEmail: '',
     gender: 'Male',
-    department: '',
+    department: hodDeptId || '',
     classBatch: '',
     academicYearJoined: '',
     currentAcademicYear: '',
@@ -103,6 +107,7 @@ export default function ManageStudents() {
     try {
       await api.post('/students', form);
       toast.success('Student enrolled successfully');
+      window.dispatchEvent(new Event('refresh-notifications'));
       setForm({
         name: '',
         rollNo: '',
@@ -110,7 +115,7 @@ export default function ManageStudents() {
         password: '',
         parentEmail: '',
         gender: 'Male',
-        department: '',
+        department: hodDeptId || '',
         classBatch: '',
         academicYearJoined: '',
         currentAcademicYear: '',
@@ -164,6 +169,7 @@ export default function ManageStudents() {
       setImportResult(res.data);
       if (res.data.created > 0) {
         toast.success(`Imported ${res.data.created} student(s)${res.data.failed ? `, ${res.data.failed} failed` : ''}`);
+        window.dispatchEvent(new Event('refresh-notifications'));
       } else {
         toast.error('No students were imported - check the results below');
       }
@@ -315,6 +321,7 @@ export default function ManageStudents() {
               <Select
                 value={form.department}
                 onChange={(e) => setForm({ ...form, department: e.target.value })}
+                disabled={Boolean(user?.isHOD && hodDeptId)}
                 error={errors.department}
               >
                 <option value="">Select Department</option>

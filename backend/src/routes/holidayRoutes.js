@@ -18,6 +18,8 @@ const upload = multer({
   },
 });
 
+const { createNotification } = require('../utils/notificationService');
+
 router.use(protect);
 
 router.get('/', async (req, res) => {
@@ -47,6 +49,15 @@ router.post('/', authorize('admin'), async (req, res) => {
     payload.semester = Number(payload.semester);
   }
   const holiday = await Holiday.create(payload);
+
+  await createNotification({
+    title: 'New Holiday Declared',
+    message: `Holiday announced: "${holiday.name}" on ${new Date(holiday.date).toLocaleDateString()}.`,
+    type: 'info',
+    link: '/admin/holidays',
+    recipientRole: 'all',
+  });
+
   res.status(201).json(holiday);
 });
 
@@ -94,6 +105,16 @@ router.post('/bulk-sundays', authorize('admin'), async (req, res) => {
     existingDates.add(dateKey);
   }
 
+  if (created.length > 0) {
+    await createNotification({
+      title: 'Sunday Holidays Generated',
+      message: `${created.length} Sunday holidays automatically populated for academic year ${year.label}.`,
+      type: 'info',
+      link: '/admin/holidays',
+      recipientRole: 'admin',
+    });
+  }
+
   res.status(201).json({ created: created.length, academicYear: year.label, semester: selectedSemester || 'all' });
 });
 
@@ -106,7 +127,16 @@ router.put('/:id', authorize('admin'), async (req, res) => {
 });
 
 router.delete('/:id', authorize('admin'), async (req, res) => {
-  await Holiday.findByIdAndDelete(req.params.id);
+  const holiday = await Holiday.findByIdAndDelete(req.params.id);
+  if (holiday) {
+    await createNotification({
+      title: 'Holiday Removed',
+      message: `Holiday "${holiday.name}" (${new Date(holiday.date).toLocaleDateString()}) was removed.`,
+      type: 'warning',
+      link: '/admin/holidays',
+      recipientRole: 'admin',
+    });
+  }
   res.json({ message: 'Deleted' });
 });
 

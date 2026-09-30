@@ -67,11 +67,44 @@ async function runDefaulterCheckAndNotify() {
       log.notifiedAt = new Date();
       log.channel = 'email';
       await log.save();
+
+      // Dispatch In-App notification to student
+      try {
+        const { createNotification } = require('../utils/notificationService');
+        await createNotification({
+          title: 'Attendance Alert: Below Threshold',
+          message: `Your attendance in ${d.courseName || 'course'} (${d.type}) is currently ${d.attendancePercent}%, below the required ${d.threshold}% threshold.`,
+          type: 'warning',
+          link: '/student',
+          recipient: student._id,
+          recipientModel: 'Student',
+          recipientRole: 'student',
+        });
+      } catch (inAppErr) {
+        console.error(`[Cron] In-app notification failed for ${student.email}:`, inAppErr);
+      }
+
       console.log(`[Cron] Notified ${student.email} and parent for ${d.courseName} (${d.type}) - ${d.attendancePercent}%`);
     } catch (err) {
       console.error(`[Cron] Failed to notify ${student.email}:`, err.message);
     }
   }
+
+  if (defaulters.length > 0) {
+    try {
+      const { createNotification } = require('../utils/notificationService');
+      await createNotification({
+        title: 'Defaulter Review Triggered',
+        message: `${defaulters.length} student attendance shortage record(s) flagged during latest check.`,
+        type: 'warning',
+        link: '/admin/defaulters',
+        recipientRole: 'admin',
+      });
+    } catch (adminNotifErr) {
+      console.error('[Cron] Failed to send admin defaulter notification:', adminNotifErr);
+    }
+  }
+
   console.log(`[Cron] Defaulter check complete. ${defaulters.length} defaulter records found.`);
 }
 

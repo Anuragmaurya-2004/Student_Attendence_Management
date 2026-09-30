@@ -3,8 +3,10 @@ const { v4: uuidv4 } = require('uuid');
 const Session = require('../models/Session');
 const Holiday = require('../models/Holiday');
 const ClassBatch = require('../models/ClassBatch');
+const Course = require('../models/Course');
 const Faculty = require('../models/Faculty');
 const { DEFAULT_RADIUS_METERS, validateLocation } = require('../services/geofenceService');
+const { createNotification } = require('../utils/notificationService');
 
 const QR_VALID_SECONDS = parseInt(process.env.QR_TOKEN_VALID_SECONDS || '20', 10);
 const QR_ROTATION_INTERVAL_SECONDS = parseInt(process.env.QR_ROTATION_INTERVAL_SECONDS || '15', 10);
@@ -59,6 +61,30 @@ const createSession = async (req, res) => {
     durationHours,
     faculty: req.user.id,
   });
+
+  try {
+    const courseDoc = await Course.findById(course);
+    const dateFormatted = new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    await createNotification({
+      title: 'Session Scheduled',
+      message: `Lecture scheduled for ${courseDoc?.code || 'Course'} (${batch?.name || ''}) on ${dateFormatted} at ${startTime}.`,
+      type: 'info',
+      link: '/faculty',
+      recipient: req.user.id,
+      recipientRole: 'faculty',
+    });
+    await createNotification({
+      title: 'New Class Scheduled',
+      message: `${courseDoc?.name || 'Course'} (${courseDoc?.code || ''}) session scheduled on ${dateFormatted} at ${startTime}.`,
+      type: 'info',
+      link: '/student',
+      classBatch: batch._id,
+      recipientRole: 'student',
+    });
+  } catch (err) {
+    console.error('Session notification error:', err);
+  }
+
   res.status(201).json(session);
 };
 
@@ -80,6 +106,20 @@ const generateSessionQR = async (req, res) => {
   session.qrExpiresAt = new Date(now + QR_VALID_SECONDS * 1000);
   session.status = 'held';
   await session.save();
+
+  try {
+    const populated = await Session.findById(session._id).populate('course classBatch');
+    await createNotification({
+      title: 'Attendance QR Active',
+      message: `Live check-in is now open for ${populated.course?.code || 'Course'} (${populated.classBatch?.name || ''}). Scan to mark attendance.`,
+      type: 'reminder',
+      link: '/student/scan',
+      classBatch: session.classBatch,
+      recipientRole: 'student',
+    });
+  } catch (err) {
+    console.error('QR active notification error:', err);
+  }
 
   // QR payload: sessionId + token, verified server-side on scan
   const payload = JSON.stringify({ sessionId: session._id.toString(), token: session.qrToken });

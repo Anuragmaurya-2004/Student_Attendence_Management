@@ -167,6 +167,21 @@ async function importHolidays(req, res) {
     results.rows.push(rowResult);
   }
 
+  if (results.created > 0) {
+    try {
+      const { createNotification } = require('../utils/notificationService');
+      await createNotification({
+        title: 'Holidays Bulk Imported',
+        message: `Successfully imported ${results.created} holidays into academic year ${academicYear.label}.`,
+        type: 'info',
+        link: '/admin/holidays',
+        recipientRole: 'all',
+      });
+    } catch (notifErr) {
+      console.error('Failed to dispatch holiday import notification:', notifErr);
+    }
+  }
+
   res.status(207).json(results);
 }
 

@@ -164,6 +164,7 @@ export default function OnDutyManagement() {
 
       const { data } = await api.post('/onduty', requestData);
       toast.success(data.message || 'On-Duty granted successfully');
+      window.dispatchEvent(new Event('refresh-notifications'));
       setShowModal(false);
       resetForm();
       loadRecords();
@@ -199,6 +200,7 @@ export default function OnDutyManagement() {
     try {
       await api.delete(`/onduty/${deleteConfirmId}`);
       toast.success('On-Duty exemption revoked');
+      window.dispatchEvent(new Event('refresh-notifications'));
       setDeleteConfirmId(null);
       loadRecords();
     } catch (err) {

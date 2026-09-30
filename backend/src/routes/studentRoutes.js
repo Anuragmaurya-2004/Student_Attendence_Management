@@ -7,6 +7,7 @@ const { protect, authorize } = require('../middleware/auth');
 const Student = require('../models/Student');
 const { importStudents, downloadTemplate } = require('../controllers/studentImportController');
 const { sendStudentWelcomeEmail } = require('../services/mailService');
+const { createNotification } = require('../utils/notificationService');
 
 const objectIdSchema = Joi.string().pattern(/^[a-fA-F0-9]{24}$/);
 
@@ -104,13 +105,51 @@ const upload = multer({
   },
 });
 
+const { getDepartmentScope } = require('../utils/userScope');
+const Faculty = require('../models/Faculty');
+
 router.use(protect);
 
 // List students (admin/faculty) - filter by classBatch, department, academicYear
 router.get('/', authorize('admin', 'faculty'), async (req, res) => {
   const filter = {};
-  if (req.query.classBatch) filter.classBatch = req.query.classBatch;
-  if (req.query.department) filter.department = req.query.department;
+  const deptScope = getDepartmentScope(req);
+  const ClassBatch = require('../models/ClassBatch');
+  let deptBatchIds = [];
+
+  if (deptScope) {
+    const deptBatches = await ClassBatch.find({ department: deptScope }).select('_id');
+    deptBatchIds = deptBatches.map((b) => b._id.toString());
+    filter.department = deptScope;
+    filter.classBatch = { $in: deptBatches.map((b) => b._id) };
+  } else if (req.query.department) {
+    filter.department = req.query.department;
+  }
+
+  if (req.user.role === 'faculty') {
+    const faculty = await Faculty.findById(req.user.id);
+    if (faculty) {
+      const allowedBatches = [
+        ...(faculty.classTeacherOf || []),
+        ...(faculty.classBatchesAssigned || []),
+      ].map((b) => b.toString());
+
+      if (req.query.classBatch) {
+        if (!allowedBatches.includes(req.query.classBatch.toString())) {
+          return res.status(403).json({ message: 'Forbidden: You are not assigned to this class batch.' });
+        }
+        filter.classBatch = req.query.classBatch;
+      } else {
+        filter.classBatch = { $in: allowedBatches };
+      }
+    }
+  } else if (req.query.classBatch) {
+    if (deptScope && !deptBatchIds.includes(req.query.classBatch.toString())) {
+      return res.status(403).json({ message: 'Forbidden: Class batch is outside your department scope.' });
+    }
+    filter.classBatch = req.query.classBatch;
+  }
+
   if (req.query.academicYear) filter.currentAcademicYear = req.query.academicYear;
   if (req.query.status) filter.status = req.query.status;
   const students = await Student.find(filter).populate('department classBatch currentAcademicYear');
@@ -119,21 +158,44 @@ router.get('/', authorize('admin', 'faculty'), async (req, res) => {
 
 // Get single student
 router.get('/:id', async (req, res) => {
-  // students can only view themselves; faculty/admin can view anyone
+  // students can only view themselves; faculty/admin can view anyone in scope
   if (req.user.role === 'student' && req.user.id !== req.params.id) {
     return res.status(403).json({ message: 'Forbidden' });
   }
   const student = await Student.findById(req.params.id).populate('department classBatch currentAcademicYear');
   if (!student) return res.status(404).json({ message: 'Not found' });
+
+  const deptScope = getDepartmentScope(req);
+  if (deptScope && student.department?._id?.toString() !== deptScope) {
+    return res.status(403).json({ message: 'Forbidden: Student is outside your department scope.' });
+  }
+
+  if (req.user.role === 'faculty') {
+    const faculty = await Faculty.findById(req.user.id);
+    if (faculty) {
+      const allowedBatches = [
+        ...(faculty.classTeacherOf || []),
+        ...(faculty.classBatchesAssigned || []),
+      ].map((b) => b.toString());
+      if (!allowedBatches.includes(student.classBatch?._id?.toString())) {
+        return res.status(403).json({ message: 'Forbidden: You do not teach or manage this student\'s class.' });
+      }
+    }
+  }
+
   res.json(student);
 });
 
 // Create student (admin only)
 router.post('/', authorize('admin'), (req, res, next) => validateRequest(createStudentSchema, req, res, next), async (req, res) => {
   try {
-    const password = req.body.password || generatePassword();
+    const deptScope = getDepartmentScope(req);
+    const data = { ...req.body };
+    if (deptScope) data.department = deptScope;
+
+    const password = data.password || generatePassword();
     const student = await Student.create({
-      ...req.body,
+      ...data,
       password,
       mustChangePassword: true,
     });
@@ -149,6 +211,24 @@ router.post('/', authorize('admin'), (req, res, next) => validateRequest(createS
       console.error('[Student] Manual create welcome email failed:', mailError.message);
     }
 
+    await createNotification({
+      title: 'Student Enrolled',
+      message: `Student "${student.name}" (Roll No: ${student.rollNo}) was successfully registered.`,
+      type: 'success',
+      link: '/admin/students',
+      recipient: req.user.id,
+      recipientRole: 'admin',
+    });
+    await createNotification({
+      title: 'Welcome to Attendance Pro',
+      message: 'Your student portal is ready. Check your enrolled class sessions and attendance history.',
+      type: 'success',
+      link: '/student',
+      recipient: student._id,
+      recipientModel: 'Student',
+      recipientRole: 'student',
+    });
+
     res.status(201).json(student);
   } catch (err) {
     res.status(400).json({ message: err.message });
@@ -156,20 +236,19 @@ router.post('/', authorize('admin'), (req, res, next) => validateRequest(createS
 });
 
 // Bulk create students from raw JSON (admin only) - expects { students: [...] }
-// NOTE: uses individual .save() calls, not insertMany. insertMany() skips
-// Mongoose's pre('save') middleware, which is what hashes the password - an
-// insertMany-based bulk insert would have stored every bulk-created
-// student's password in PLAIN TEXT. .save() runs the hook correctly, and
-// also lets one bad row fail without aborting the whole batch.
 router.post('/bulk', authorize('admin'), (req, res, next) => validateRequest(bulkStudentsSchema, req, res, next), async (req, res) => {
   const { students } = req.body;
+  const deptScope = getDepartmentScope(req);
 
   const results = { created: 0, failed: 0, rows: [] };
   for (const [idx, data] of students.entries()) {
     try {
-      const password = data.password || generatePassword();
+      const studentData = { ...data };
+      if (deptScope) studentData.department = deptScope;
+
+      const password = studentData.password || generatePassword();
       const student = new Student({
-        ...data,
+        ...studentData,
         password,
         mustChangePassword: true,
       });
@@ -197,20 +276,57 @@ router.post('/bulk', authorize('admin'), (req, res, next) => validateRequest(bul
       });
     }
   }
+
+  if (results.created > 0) {
+    await createNotification({
+      title: 'Bulk Students Ingested',
+      message: `Successfully onboarded ${results.created} student(s) into class cohorts.`,
+      type: 'success',
+      link: '/admin/students',
+      recipient: req.user.id,
+      recipientRole: 'admin',
+    });
+  }
+
   res.status(207).json(results);
 });
 
 // Bulk import students from an uploaded Excel/CSV file (admin only).
-// Lets a university onboard an entire class in one upload instead of
-// adding students one by one.
 router.post('/import', authorize('admin'), upload.single('file'), importStudents);
 router.get('/import/template', authorize('admin'), downloadTemplate);
 
 // Update student
 router.put('/:id', authorize('admin'), (req, res, next) => validateRequest(updateStudentSchema, req, res, next), async (req, res) => {
   try {
-    const student = await Student.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    if (!student) return res.status(404).json({ message: 'Student not found' });
+    const deptScope = getDepartmentScope(req);
+    const existing = await Student.findById(req.params.id);
+    if (!existing) return res.status(404).json({ message: 'Student not found' });
+    if (deptScope && existing.department.toString() !== deptScope) {
+      return res.status(403).json({ message: 'Forbidden: You can only edit students in your department.' });
+    }
+    const updateData = { ...req.body };
+    if (deptScope) updateData.department = deptScope;
+
+    const student = await Student.findByIdAndUpdate(req.params.id, updateData, { new: true });
+
+    await createNotification({
+      title: 'Student Profile Updated',
+      message: `Profile records for "${student.name}" (${student.rollNo}) were updated.`,
+      type: 'info',
+      link: '/admin/students',
+      recipient: req.user.id,
+      recipientRole: 'admin',
+    });
+    await createNotification({
+      title: 'Profile Updated',
+      message: 'Your academic profile details have been updated by administration.',
+      type: 'info',
+      link: '/student',
+      recipient: student._id,
+      recipientModel: 'Student',
+      recipientRole: 'student',
+    });
+
     res.json(student);
   } catch (err) {
     res.status(400).json({ message: err.message });
@@ -219,7 +335,23 @@ router.put('/:id', authorize('admin'), (req, res, next) => validateRequest(updat
 
 // Delete student
 router.delete('/:id', authorize('admin'), async (req, res) => {
+  const deptScope = getDepartmentScope(req);
+  const existing = await Student.findById(req.params.id);
+  if (!existing) return res.status(404).json({ message: 'Student not found' });
+  if (deptScope && existing.department.toString() !== deptScope) {
+    return res.status(403).json({ message: 'Forbidden: You can only delete students in your department.' });
+  }
   await Student.findByIdAndDelete(req.params.id);
+
+  await createNotification({
+    title: 'Student Record Removed',
+    message: `Student "${existing.name}" (${existing.rollNo}) was deleted from the roster.`,
+    type: 'info',
+    link: '/admin/students',
+    recipient: req.user.id,
+    recipientRole: 'admin',
+  });
+
   res.json({ message: 'Deleted' });
 });
 

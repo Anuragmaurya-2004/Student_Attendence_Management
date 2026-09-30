@@ -4,11 +4,11 @@ import { Inbox } from 'lucide-react';
 export function Card({ title, subtitle, children, actions, className = '' }) {
   return (
     <div
-      className={`rounded-3xl border border-slate-200/90 bg-white/95 p-5 shadow-[0_10px_30px_rgba(15,23,42,0.04)] ring-1 ring-slate-900/5 backdrop-blur-md transition-all duration-200 dark:border-slate-800/80 dark:bg-slate-900/90 dark:ring-white/5 dark:shadow-[0_10px_30px_rgba(0,0,0,0.35)] sm:p-6 ${className}`}
+      className={`w-full min-w-0 max-w-full rounded-3xl border border-slate-200/90 bg-white/95 p-5 shadow-[0_10px_30px_rgba(15,23,42,0.04)] ring-1 ring-slate-900/5 backdrop-blur-md transition-all duration-200 dark:border-slate-800/80 dark:bg-slate-900/90 dark:ring-white/5 dark:shadow-[0_10px_30px_rgba(0,0,0,0.35)] sm:p-6 ${className}`}
     >
       {(title || subtitle || actions) && (
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4 dark:border-slate-800/80">
-          <div>
+        <div className="mb-5 flex flex-col gap-3 border-b border-slate-100 pb-4 dark:border-slate-800/80 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0 max-w-full">
             {title && (
               <h2 className="text-base font-semibold tracking-tight text-slate-900 dark:text-white sm:text-lg">
                 {title}
@@ -20,10 +20,12 @@ export function Card({ title, subtitle, children, actions, className = '' }) {
               </p>
             )}
           </div>
-          {actions && <div className="flex items-center gap-2">{actions}</div>}
+          {actions && <div className="flex flex-wrap items-center gap-2 shrink-0">{actions}</div>}
         </div>
       )}
-      {children}
+      <div className="w-full min-w-0 max-w-full">
+        {children}
+      </div>
     </div>
   );
 }
@@ -70,7 +72,7 @@ export function Badge({ children, color = 'gray', className = '', dot = false })
 
 export function Table({ columns, data = [], emptyText = 'No records found', className = '' }) {
   return (
-    <div className={`overflow-x-auto rounded-2xl border border-slate-200/90 bg-white/70 shadow-sm dark:border-slate-800 dark:bg-slate-950/40 ${className}`}>
+    <div className={`w-full max-w-full overflow-x-auto rounded-2xl border border-slate-200/90 bg-white/70 shadow-sm dark:border-slate-800 dark:bg-slate-950/40 ${className}`}>
       <table className="min-w-full text-left text-sm">
         <thead className="sticky top-0 z-10 backdrop-blur-md">
           <tr className="border-b border-slate-200/90 bg-slate-50/95 font-semibold text-slate-600 dark:border-slate-800 dark:bg-slate-900/95 dark:text-slate-300">

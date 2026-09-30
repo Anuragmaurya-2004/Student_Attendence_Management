@@ -18,6 +18,7 @@ import OnDutyManagement from './pages/admin/OnDutyManagement';
 import FacultySessions from './pages/faculty/FacultySessions';
 import SessionDetail from './pages/faculty/SessionDetail';
 import FacultyDefaulters from './pages/faculty/FacultyDefaulters';
+import MyClassAttendance from './pages/faculty/MyClassAttendance';
 
 import StudentAttendance from './pages/student/StudentAttendance';
 import ScanQR from './pages/student/ScanQR';
@@ -49,9 +50,11 @@ export default function App() {
             <Route path="/admin/holidays" element={<ProtectedRoute roles={['admin']}><Holidays /></ProtectedRoute>} />
             <Route path="/admin/defaulters" element={<ProtectedRoute roles={['admin']}><Defaulters /></ProtectedRoute>} />
             <Route path="/admin/rollover" element={<ProtectedRoute roles={['admin']}><Rollover /></ProtectedRoute>} />
+            <Route path="/admin/class-matrix" element={<ProtectedRoute roles={['admin']}><MyClassAttendance /></ProtectedRoute>} />
 
             {/* Faculty routes (admin can access too since admin extends faculty login) */}
             <Route path="/faculty" element={<ProtectedRoute roles={['faculty', 'admin']}><FacultySessions /></ProtectedRoute>} />
+            <Route path="/faculty/my-class" element={<ProtectedRoute roles={['faculty', 'admin']}><MyClassAttendance /></ProtectedRoute>} />
             <Route path="/faculty/onduty" element={<ProtectedRoute roles={['faculty', 'admin']}><OnDutyManagement /></ProtectedRoute>} />
             <Route path="/faculty/sessions/:id" element={<ProtectedRoute roles={['faculty', 'admin']}><SessionDetail /></ProtectedRoute>} />
             <Route path="/faculty/defaulters" element={<ProtectedRoute roles={['faculty', 'admin']}><FacultyDefaulters /></ProtectedRoute>} />

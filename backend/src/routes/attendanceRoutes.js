@@ -7,6 +7,7 @@ const {
   markBulk,
   getBySession,
   getByStudent,
+  getClassBatchMatrix,
 } = require('../controllers/attendanceController');
 
 router.use(protect);
@@ -15,6 +16,7 @@ router.post('/check-in', checkIn); // student self check-in via QR
 router.post('/manual', authorize('admin', 'faculty'), markManual);
 router.post('/bulk', authorize('admin', 'faculty'), markBulk);
 router.get('/session/:sessionId', authorize('admin', 'faculty'), getBySession);
+router.get('/class-matrix/:classBatchId', authorize('admin', 'faculty'), getClassBatchMatrix);
 router.get('/student/:studentId', getByStudent);
 
 module.exports = router;

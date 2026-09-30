@@ -64,6 +64,29 @@ router.post('/promote', async (req, res) => {
   newYear.isActive = true;
   await newYear.save();
 
+  try {
+    const { createNotification } = require('../utils/notificationService');
+    await createNotification({
+      title: 'Academic Year Rollover Completed',
+      message: `Rollover complete to ${newYear.label}. ${summary.promoted} student(s) promoted, ${summary.graduated} graduated.`,
+      type: 'success',
+      link: '/admin/rollover',
+      recipientRole: 'admin',
+    });
+
+    if (summary.promoted > 0) {
+      await createNotification({
+        title: 'Academic Year Rollover',
+        message: `Welcome to Academic Year ${newYear.label}! Your class and curriculum have been updated.`,
+        type: 'info',
+        link: '/student',
+        recipientRole: 'student',
+      });
+    }
+  } catch (notifErr) {
+    console.error('Failed to dispatch rollover notifications:', notifErr);
+  }
+
   res.json({ message: 'Rollover complete', summary });
 });
 

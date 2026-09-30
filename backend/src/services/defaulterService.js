@@ -4,6 +4,7 @@ const Attendance = require('../models/Attendance');
 const Student = require('../models/Student');
 const Course = require('../models/Course');
 const DefaulterLog = require('../models/DefaulterLog');
+const Faculty = require('../models/Faculty');
 
 const DEFAULT_THRESHOLD = parseFloat(process.env.DEFAULTER_THRESHOLD_PERCENT || '75');
 
@@ -47,32 +48,86 @@ async function computeStudentCourseAttendance(studentId, courseId) {
 }
 
 /**
- * Compute attendance for ALL active students, ALL courses in their classBatch/department/semester,
- * split by theory vs practical. Returns array of results, and optionally logs defaulters.
+ * Compute attendance for active students with optional filtering:
+ * - academicYear: specific academic year
+ * - department: restrict to a specific department (e.g. for HOD)
+ * - classBatch: restrict to a specific class batch
+ * - facultyId: if provided:
+ *     - If faculty is Class Teacher of a student's classBatch: all subjects for that student are included.
+ *     - If faculty is NOT Class Teacher: only the specific course(s) assigned to that faculty are included.
  */
-async function computeAllDefaulters({ academicYear, logResults = true } = {}) {
+async function computeAllDefaulters({ academicYear, department, classBatch, facultyId, logResults = true } = {}) {
+  const ClassBatch = require('../models/ClassBatch');
   const studentFilter = { status: 'active' };
   if (academicYear) studentFilter.currentAcademicYear = academicYear;
+  if (department) {
+    studentFilter.department = department;
+    const deptBatches = await ClassBatch.find({ department }).select('_id');
+    studentFilter.classBatch = { $in: deptBatches.map((b) => b._id) };
+  } else if (classBatch) {
+    studentFilter.classBatch = classBatch;
+  }
+
+  let faculty = null;
+  let teacherBatches = [];
+  let assignedCourses = [];
+
+  if (facultyId) {
+    faculty = await Faculty.findById(facultyId);
+    if (faculty) {
+      teacherBatches = (faculty.classTeacherOf || []).map((b) => b.toString());
+      assignedCourses = (faculty.coursesAssigned || []).map((c) => c.toString());
+    }
+  }
+
   const students = await Student.find(studentFilter).populate('classBatch');
 
   const courseFilter = {};
   if (academicYear) courseFilter.academicYear = academicYear;
+  if (department) courseFilter.department = department;
   const courses = await Course.find(courseFilter);
 
   const results = [];
 
   for (const student of students) {
+    if (!student.classBatch) continue;
+    const studentBatchId = student.classBatch._id ? student.classBatch._id.toString() : student.classBatch.toString();
+    const isClassTeacher = teacherBatches.includes(studentBatchId);
+
+    // If viewing as faculty, and neither class teacher nor has assigned courses, skip
+    if (facultyId && !isClassTeacher && assignedCourses.length === 0) {
+      continue;
+    }
+
     // Match courses relevant to this student: same department + semester + academicYear
-    const relevantCourses = courses.filter(
+    let relevantCourses = courses.filter(
       (c) =>
         c.department.toString() === student.department.toString() &&
+        (student.classBatch?.department?.toString() === student.department.toString() ||
+          !student.classBatch?.department) &&
         c.semester === student.classBatch?.semester &&
         c.academicYear.toString() === student.currentAcademicYear.toString()
     );
 
+    // Faculty scoping rule:
+    // - Class Teacher sees ALL courses of their class batch
+    // - Non-class-teacher sees ONLY specifically assigned courses
+    if (facultyId && !isClassTeacher) {
+      relevantCourses = relevantCourses.filter((c) => assignedCourses.includes(c._id.toString()));
+    }
+
     for (const course of relevantCourses) {
       const result = await computeStudentCourseAttendance(student._id, course._id);
-      results.push({ ...result, studentName: student.name, rollNo: student.rollNo, courseName: course.name });
+      results.push({
+        ...result,
+        studentName: student.name,
+        rollNo: student.rollNo,
+        courseName: course.name,
+        courseCode: course.code,
+        classBatchId: studentBatchId,
+        classBatchName: student.classBatch?.name,
+        isClassTeacherView: isClassTeacher,
+      });
 
       if (logResults && result.isDefaulter) {
         await DefaulterLog.findOneAndUpdate(

@@ -99,6 +99,7 @@ export default function Holidays() {
     try {
       await api.post('/holidays', form);
       toast.success('Holiday scheduled successfully');
+      window.dispatchEvent(new Event('refresh-notifications'));
       setForm({ date: '', name: '', academicYear: '', semester: '' });
       setErrors({ date: '', name: '', academicYear: '', semester: '' });
       load();
@@ -113,6 +114,7 @@ export default function Holidays() {
     try {
       await api.delete(`/holidays/${deleteHoliday._id}`);
       toast.success('Holiday removed');
+      window.dispatchEvent(new Event('refresh-notifications'));
       setDeleteHoliday(null);
       load();
     } catch (err) {
@@ -161,6 +163,7 @@ export default function Holidays() {
       setImportResult(res.data);
       if (res.data.created > 0) {
         toast.success(`Imported ${res.data.created} holiday(s)${res.data.failed ? `, ${res.data.failed} failed` : ''}`);
+        window.dispatchEvent(new Event('refresh-notifications'));
       } else {
         toast.error('No holidays were imported - check the results below');
       }
@@ -187,6 +190,7 @@ export default function Holidays() {
       });
       const label = res.data.semester && res.data.semester !== 'all' ? ` (Sem ${res.data.semester})` : '';
       toast.success(`Marked all Sundays as holidays${label} (${res.data.created} dates added)`);
+      window.dispatchEvent(new Event('refresh-notifications'));
       load();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Could not mark Sundays');
