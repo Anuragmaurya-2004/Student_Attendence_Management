@@ -12,7 +12,7 @@ const data = JSON.stringify({
 
 const req = https.request(
   {
-    hostname: 'student-attendance-management.onrender.com',
+    hostname: 'studentattendencemanagement-production.up.railway.app',
     port: 443,
     path: '/api/auth/faculty/login',
     method: 'POST',
