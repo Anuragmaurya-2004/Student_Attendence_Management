@@ -618,9 +618,10 @@ async function seed() {
   console.log('| HOD AI-DS (Admin)      | hod.aids@college.edu      | Hod@1234     |');
   console.log('| Teacher (CSE)          | priya.sharma@college.edu  | Faculty@123  |');
   console.log('| Teacher (CSE)          | amit.deshmukh@college.edu | Faculty@123  |');
-  console.log('| Teacher (IT)           | sneha.joshi@college.edu   | Faculty@123  |');
-  console.log('| Teacher (IT)           | vikram.patel@college.edu  | Faculty@123  |');
+  console.log('| Teacher (IT)           | simran.patil@college.edu  | Faculty@123  |');
+  console.log('| Teacher (IT)           | sonali.karthik@college.edu | Faculty@123  |');
   console.log('| Teacher (AI-DS)        | neha.gupta@college.edu    | Faculty@123  |');
+  console.log('| Student (Anurag)       | 233119@theemcoe.org       | Student@123  |');
   console.log('| Student 1 (Aarav - OD) | student1@college.edu      | Student@123  |');
   console.log('| Student 2 (Ananya - OD)| student2@college.edu      | Student@123  |');
   console.log('| Student 5 (Aditya - OD)| student5@college.edu      | Student@123  |');

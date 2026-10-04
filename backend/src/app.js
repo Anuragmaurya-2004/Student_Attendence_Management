@@ -19,7 +19,25 @@ const { notFound, errorHandler } = require('./middleware/errorHandler');
 
 const app = express();
 
-app.use(cors({ origin: process.env.CLIENT_URL || '*', credentials: true }));
+const configuredClient = process.env.CLIENT_URL;
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      if (
+        !configuredClient ||
+        configuredClient === '*' ||
+        origin === configuredClient ||
+        origin.endsWith('.vercel.app') ||
+        /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)
+      ) {
+        return callback(null, true);
+      }
+      return callback(null, true);
+    },
+    credentials: true,
+  })
+);
 app.use(express.json());
 // Strips any key starting with "$" or containing "." from req.body/req.query/req.params
 // so query filters built from user input (e.g. filter.department = req.query.department)
