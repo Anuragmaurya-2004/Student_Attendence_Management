@@ -54,7 +54,7 @@ attendance-system/
 - **MongoDB** (Community Edition) running locally, or a connection string to any MongoDB instance
   - Install locally: https://www.mongodb.com/docs/manual/installation/
   - Or run via Docker: `docker run -d -p 27017:27017 --name mongo mongo:7`
-- (Optional) An SMTP account for sending emails — e.g. a Gmail account with an **App Password**, or any SMTP provider (Mailtrap for testing, SendGrid free tier, self-hosted Postfix, etc.)
+- (Optional) A Resend API key for sending emails through the HTTPS API — this avoids outbound SMTP restrictions that often block free hosting environments.
 
 ---
 
@@ -69,7 +69,8 @@ cp .env.example .env
 Edit `.env`:
 - `MONGO_URI` — your MongoDB connection string (default works for local MongoDB)
 - `JWT_SECRET` — change to a long random string
-- `SMTP_*` — fill in to enable email notifications (leave blank to skip emails; the app will log a warning and continue working otherwise)
+- `RESEND_API_KEY` — fill in to enable email notifications (leave blank to skip emails; the app will log a warning and continue working otherwise)
+- `MAIL_FROM` — verified sender address or default Resend domain used for outbound mail
 - `DEFAULTER_THRESHOLD_PERCENT` — default minimum attendance % (e.g. 75)
 - `QR_TOKEN_VALID_SECONDS` — QR token lifetime (default 20 seconds)
 - `QR_ROTATION_INTERVAL_SECONDS` — faculty-screen refresh interval (default 15 seconds)
@@ -161,8 +162,8 @@ This outputs static files to `frontend/dist/`, which can be served by any static
 
 ## 7. Notes on Notifications
 
-- **Email** (via Nodemailer) is the primary free/open-source notification channel. Configure `SMTP_*` env vars.
-  - Easiest for testing: Gmail with an [App Password](https://support.google.com/accounts/answer/185833), or a free [Mailtrap](https://mailtrap.io) sandbox inbox.
+- **Email** is sent through the Resend HTTPS API so it works on hosting providers that block outbound SMTP ports.
+  - Set `RESEND_API_KEY` and verify a sender address/domain in your Resend dashboard before enabling real email delivery.
 - **SMS** is not included — genuinely free/open-source SMS gateways don't really exist (telecom routing costs money). If needed later, integrate a paid provider (Twilio, MSG91, etc.) as a separate step.
 - **WhatsApp** notifications can be added later using the open-source [Baileys](https://github.com/WhiskeySockets/Baileys) library (unofficial WhatsApp Web API) — not included in this initial build to keep things stable and ToS-safe by default.
 
@@ -191,5 +192,5 @@ A Docker Compose file for local orchestration is included at the repo root (`doc
 | Database | MongoDB Community Edition | SSPL (free to self-host) |
 | Auth | JWT + bcrypt | MIT |
 | Scheduling | node-cron | MIT |
-| Email | Nodemailer | MIT |
+| Email | Resend | MIT |
 | Export | ExcelJS, PDFKit | MIT |

@@ -1,34 +1,39 @@
-const nodemailer = require('nodemailer');
+// Email is sent over Resend's HTTPS API, not SMTP. Render, Railway and most
+// free-tier hosts block outbound SMTP ports (25/465/587) to prevent spam
+// abuse - this has nothing to do with correct credentials or code, the
+// connection is dropped at the network level before it ever reaches Gmail
+// or any other SMTP server. HTTPS (port 443) is never blocked, so routing
+// mail through a provider's API instead of raw SMTP sidesteps the problem
+// entirely, on any host.
+const { Resend } = require('resend');
 
-let transporter;
+let resendClient;
 
-function getTransporter() {
-  if (!transporter) {
-    transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: parseInt(process.env.SMTP_PORT || '587', 10),
-      secure: process.env.SMTP_SECURE === 'true',
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
-    });
+function getClient() {
+  if (!resendClient) {
+    resendClient = new Resend(process.env.RESEND_API_KEY);
   }
-  return transporter;
+  return resendClient;
 }
 
 async function sendMail({ to, subject, html }) {
-  if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
-    console.warn('[Mail] SMTP not configured, skipping email to', to);
+  if (!process.env.RESEND_API_KEY) {
+    console.warn('[Mail] RESEND_API_KEY not configured, skipping email to', to);
     return { skipped: true };
   }
-  const info = await getTransporter().sendMail({
-    from: process.env.MAIL_FROM || process.env.SMTP_USER,
+
+  const { data, error } = await getClient().emails.send({
+    from: process.env.MAIL_FROM || 'onboarding@resend.dev',
     to,
     subject,
     html,
   });
-  return info;
+
+  if (error) {
+    console.error('[Mail] Resend send failed:', error);
+    throw new Error(error.message || 'Failed to send email');
+  }
+  return data;
 }
 
 function defaulterEmailTemplate({ studentName, courseName, type, attendancePercent, threshold, recipientType = 'student' }) {
