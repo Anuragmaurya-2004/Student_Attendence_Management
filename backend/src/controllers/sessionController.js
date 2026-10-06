@@ -11,6 +11,7 @@ const { createNotification } = require('../utils/notificationService');
 const QR_VALID_SECONDS = parseInt(process.env.QR_TOKEN_VALID_SECONDS || '20', 10);
 const QR_ROTATION_INTERVAL_SECONDS = parseInt(process.env.QR_ROTATION_INTERVAL_SECONDS || '15', 10);
 const QR_GRACE_SECONDS = parseInt(process.env.QR_TOKEN_GRACE_SECONDS || '5', 10);
+const QR_WINDOW_MINUTES = parseInt(process.env.QR_TOKEN_VALID_MINUTES || '10', 10);
 
 // @desc Create a session (class/lab slot). Faculty/Admin only.
 // @route POST /api/sessions
@@ -98,6 +99,40 @@ const generateSessionQR = async (req, res) => {
   }
 
   const now = Date.now();
+  const { isRotation, resetWindow, closeWindow } = req.body || {};
+
+  // If faculty explicitly requests to close the QR check-in window early
+  if (closeWindow) {
+    session.qrWindowExpiresAt = new Date(now);
+    session.qrExpiresAt = new Date(now);
+    await session.save();
+    return res.json({
+      closed: true,
+      message: 'QR check-in window closed.',
+      windowExpiresAt: session.qrWindowExpiresAt,
+      isExpired: true,
+    });
+  }
+
+  const isWindowExpired = session.qrWindowExpiresAt && session.qrWindowExpiresAt.getTime() <= now;
+
+  // If this is an automated 15s rotation and the 10-minute window has expired, refuse rotation
+  if (isRotation && isWindowExpired) {
+    return res.status(400).json({
+      expired: true,
+      message: 'QR check-in window has expired (10-minute limit reached).',
+      windowExpiresAt: session.qrWindowExpiresAt,
+    });
+  }
+
+  let isNewWindow = false;
+  // Initialize or restart 10-minute window
+  if (resetWindow || !session.qrWindowExpiresAt || isWindowExpired) {
+    session.qrWindowStartedAt = new Date(now);
+    session.qrWindowExpiresAt = new Date(now + QR_WINDOW_MINUTES * 60 * 1000);
+    isNewWindow = true;
+  }
+
   if (session.qrToken && session.qrExpiresAt) {
     session.qrPreviousToken = session.qrToken;
     session.qrPreviousExpiresAt = new Date(now + QR_GRACE_SECONDS * 1000);
@@ -107,18 +142,21 @@ const generateSessionQR = async (req, res) => {
   session.status = 'held';
   await session.save();
 
-  try {
-    const populated = await Session.findById(session._id).populate('course classBatch');
-    await createNotification({
-      title: 'Attendance QR Active',
-      message: `Live check-in is now open for ${populated.course?.code || 'Course'} (${populated.classBatch?.name || ''}). Scan to mark attendance.`,
-      type: 'reminder',
-      link: '/student/scan',
-      classBatch: session.classBatch,
-      recipientRole: 'student',
-    });
-  } catch (err) {
-    console.error('QR active notification error:', err);
+  // Send notification only when a new QR window starts, rather than spamming on every 15s rotation
+  if (isNewWindow) {
+    try {
+      const populated = await Session.findById(session._id).populate('course classBatch');
+      await createNotification({
+        title: 'Attendance QR Active',
+        message: `Live check-in is now open (valid for ${QR_WINDOW_MINUTES}m) for ${populated.course?.code || 'Course'} (${populated.classBatch?.name || ''}). Scan to mark attendance.`,
+        type: 'reminder',
+        link: '/student/scan',
+        classBatch: session.classBatch,
+        recipientRole: 'student',
+      });
+    } catch (err) {
+      console.error('QR active notification error:', err);
+    }
   }
 
   // QR payload: sessionId + token, verified server-side on scan
@@ -130,6 +168,10 @@ const generateSessionQR = async (req, res) => {
     qrToken: session.qrToken,
     expiresAt: session.qrExpiresAt,
     rotationIntervalSeconds: QR_ROTATION_INTERVAL_SECONDS,
+    windowExpiresAt: session.qrWindowExpiresAt,
+    windowStartedAt: session.qrWindowStartedAt,
+    windowTotalSeconds: QR_WINDOW_MINUTES * 60,
+    isExpired: false,
   });
 };
 
