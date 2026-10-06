@@ -9,6 +9,11 @@ const getDefaultApiUrl = () => {
     return 'http://localhost:5000/api';
   }
 
+  // Fallback to deployed Railway API if VITE_API_URL was not set during build
+  if (hostname.endsWith('.vercel.app')) {
+    return 'https://studentattendencemanagement-production.up.railway.app/api';
+  }
+
   return `http://${hostname}:5000/api`;
 };
 
