@@ -161,12 +161,13 @@ export default function MyClassAttendance() {
   // Calculate high-level stats
   const totalStudents = matrixData?.matrix?.length || 0;
   const defaultersCount = matrixData?.matrix?.filter((m) => m.overall.isDefaulter).length || 0;
-  const criticalCount = matrixData?.matrix?.filter((m) => m.overall.overallPercent < 50).length || 0;
-  const avgClassAttendance = totalStudents
+  const heldStudents = matrixData?.matrix?.filter((m) => m.overall.totalHeldHours > 0) || [];
+  const criticalCount = heldStudents.filter((m) => m.overall.overallPercent < 50).length;
+  const avgClassAttendance = heldStudents.length
     ? Math.round(
-        (matrixData.matrix.reduce((sum, m) => sum + m.overall.overallPercent, 0) / totalStudents) * 10
+        (heldStudents.reduce((sum, m) => sum + m.overall.overallPercent, 0) / heldStudents.length) * 10
       ) / 10
-    : 100;
+    : 0;
 
   return (
     <div className="space-y-6">
@@ -360,21 +361,24 @@ export default function MyClassAttendance() {
                     {/* Per Course Attendance Cells */}
                     {item.courses.map((c) => {
                       const pct = c.attendancePercent;
-                      const isCrit = pct < 50;
-                      const isDef = c.isDefaulter;
+                      const isHeld = c.totalHeldHours > 0;
+                      const isCrit = isHeld && pct < 50;
+                      const isDef = isHeld && c.isDefaulter;
 
                       return (
                         <td key={c.courseId} className="px-3 py-3.5 text-center whitespace-nowrap">
                           <div
                             className={`inline-flex flex-col items-center justify-center rounded-xl px-2.5 py-1 text-xs font-bold transition ${
-                              isCrit
+                              !isHeld
+                                ? 'bg-slate-100 text-slate-500 border border-slate-200/80 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700'
+                                : isCrit
                                 ? 'bg-rose-50 text-rose-700 border border-rose-200/80 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-900/60'
                                 : isDef
                                 ? 'bg-amber-50 text-amber-700 border border-amber-200/80 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900/60'
                                 : 'bg-emerald-50 text-emerald-700 border border-emerald-200/80 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900/60'
                             }`}
                           >
-                            <span>{pct}%</span>
+                            <span>{isHeld ? `${pct}%` : '—'}</span>
                             <span className="text-[10px] font-normal opacity-80">
                               {c.attendedHours}/{c.totalHeldHours}h
                             </span>
@@ -388,14 +392,16 @@ export default function MyClassAttendance() {
                       <div className="flex flex-col items-center">
                         <span
                           className={`text-sm font-extrabold ${
-                            item.overall.overallPercent < 50
+                            item.overall.totalHeldHours === 0
+                              ? 'text-slate-400'
+                              : item.overall.overallPercent < 50
                               ? 'text-rose-600 dark:text-rose-400'
                               : item.overall.isDefaulter
                               ? 'text-amber-600 dark:text-amber-400'
                               : 'text-emerald-600 dark:text-emerald-400'
                           }`}
                         >
-                          {item.overall.overallPercent}%
+                          {item.overall.totalHeldHours > 0 ? `${item.overall.overallPercent}%` : '—'}
                         </span>
                         <span className="text-[10px] text-slate-400">
                           {item.overall.totalAttendedHours}/{item.overall.totalHeldHours} hrs
@@ -407,15 +413,21 @@ export default function MyClassAttendance() {
                     <td className="px-4 py-3.5 text-center bg-indigo-50/40 dark:bg-indigo-950/20 whitespace-nowrap">
                       <Badge
                         color={
-                          item.overall.overallPercent < 50
+                          item.overall.totalHeldHours === 0
+                            ? 'gray'
+                            : item.overall.overallPercent < 50
                             ? 'red'
                             : item.overall.isDefaulter
                             ? 'yellow'
                             : 'green'
                         }
-                        dot
+                        dot={item.overall.totalHeldHours > 0}
                       >
-                        {item.overall.isDefaulter ? 'Defaulter' : 'Eligible'}
+                        {item.overall.totalHeldHours === 0
+                          ? 'No Sessions'
+                          : item.overall.isDefaulter
+                          ? 'Defaulter'
+                          : 'Eligible'}
                       </Badge>
                     </td>
 

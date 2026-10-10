@@ -67,7 +67,7 @@ async function computeStudentCourseAttendance(studentId, courseId, classBatchId 
     return sum + dur;
   }, 0);
 
-  const attendancePercent = totalHeldHours > 0 ? (attendedHours / totalHeldHours) * 100 : 100;
+  const attendancePercent = totalHeldHours > 0 ? (attendedHours / totalHeldHours) * 100 : 0;
 
   return {
     student: studentId,
@@ -79,6 +79,7 @@ async function computeStudentCourseAttendance(studentId, courseId, classBatchId 
     totalHeldHours,
     attendancePercent: Math.round(attendancePercent * 100) / 100,
     threshold: course.defaulterThresholdPercent || DEFAULT_THRESHOLD,
+    hasSessions: totalHeldHours > 0,
     isDefaulter: totalHeldHours > 0 && attendancePercent < (course.defaulterThresholdPercent || DEFAULT_THRESHOLD),
   };
 }
@@ -154,7 +155,29 @@ async function computeAllDefaulters({
   if (academicYear) courseFilter.academicYear = academicYear;
   if (department) courseFilter.department = department;
   if (course) courseFilter._id = course;
-  const courses = await Course.find(courseFilter);
+  const directCourses = await Course.find(courseFilter);
+
+  // Also include any courses that have sessions conducted or scheduled for any batches in scope
+  const studentBatchIds = students.map((s) => s.classBatch?._id || s.classBatch).filter(Boolean);
+  const sessionCourseIds = await Session.distinct('course', { classBatch: { $in: studentBatchIds } });
+  const sessionCourseFilter = { _id: { $in: sessionCourseIds } };
+  if (course) sessionCourseFilter._id = course;
+  const sessionCourses = await Course.find(sessionCourseFilter);
+
+  const courseMap = new Map();
+  [...directCourses, ...sessionCourses].forEach((c) => {
+    courseMap.set(c._id.toString(), c);
+  });
+  const courses = Array.from(courseMap.values());
+
+  // Map each batch to the set of course IDs that have sessions for that batch
+  const sessionPairs = await Session.find({ classBatch: { $in: studentBatchIds } }).select('classBatch course');
+  const batchCourseMap = new Map();
+  sessionPairs.forEach((sp) => {
+    const bId = sp.classBatch.toString();
+    if (!batchCourseMap.has(bId)) batchCourseMap.set(bId, new Set());
+    if (sp.course) batchCourseMap.get(bId).add(sp.course.toString());
+  });
 
   const results = [];
 
@@ -172,12 +195,14 @@ async function computeAllDefaulters({
         continue;
       }
 
-      const relevantCourses = courses.filter(
-        (c) =>
-          c.department.toString() === student.department.toString() &&
-          c.semester === student.classBatch?.semester &&
-          c.academicYear.toString() === student.currentAcademicYear.toString()
-      );
+      const relevantCourses = courses.filter((c) => {
+        const cId = c._id.toString();
+        const isSessionCourse = batchCourseMap.get(studentBatchId)?.has(cId);
+        const isCurriculumCourse =
+          c.department?.toString() === student.department?.toString() &&
+          c.semester === student.classBatch?.semester;
+        return isSessionCourse || isCurriculumCourse;
+      });
 
       let totalAttended = 0;
       let totalHeld = 0;
@@ -199,7 +224,7 @@ async function computeAllDefaulters({
         }
       }
 
-      const overallPercent = totalHeld > 0 ? Math.round((totalAttended / totalHeld) * 10000) / 100 : 100;
+      const overallPercent = totalHeld > 0 ? Math.round((totalAttended / totalHeld) * 10000) / 100 : 0;
       const isDefaulter = totalHeld > 0 && (overallPercent < DEFAULT_THRESHOLD || failingCourses.length > 0);
 
       results.push({
@@ -214,6 +239,7 @@ async function computeAllDefaulters({
         totalHeldHours: totalHeld,
         attendancePercent: overallPercent,
         threshold: DEFAULT_THRESHOLD,
+        hasSessions: totalHeld > 0,
         isDefaulter,
         isOverall: true,
         isClassTeacherView: isClassTeacher,
@@ -233,12 +259,14 @@ async function computeAllDefaulters({
       : student.classBatch.toString();
     const isClassTeacher = teacherBatches.includes(studentBatchId);
 
-    let relevantCourses = courses.filter(
-      (c) =>
-        c.department.toString() === student.department.toString() &&
-        c.semester === student.classBatch?.semester &&
-        c.academicYear.toString() === student.currentAcademicYear.toString()
-    );
+    let relevantCourses = courses.filter((c) => {
+      const cId = c._id.toString();
+      const isSessionCourse = batchCourseMap.get(studentBatchId)?.has(cId);
+      const isCurriculumCourse =
+        c.department?.toString() === student.department?.toString() &&
+        c.semester === student.classBatch?.semester;
+      return isSessionCourse || isCurriculumCourse;
+    });
 
     // Subject faculty scoping:
     // When a teacher teaches multiple classes, show defaulters of their assigned subject(s) only

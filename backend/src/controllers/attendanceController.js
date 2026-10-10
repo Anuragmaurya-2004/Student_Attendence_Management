@@ -269,7 +269,17 @@ const getClassBatchMatrix = async (req, res) => {
   if (batchYear) {
     courseQuery.academicYear = batchYear;
   }
-  const courses = await Course.find(courseQuery).sort('code');
+  const directCourses = await Course.find(courseQuery).sort('code');
+
+  // Also include any courses that have sessions conducted or scheduled for this class batch
+  const sessionCourseIds = await Session.distinct('course', { classBatch: batch._id });
+  const sessionCourses = await Course.find({ _id: { $in: sessionCourseIds } });
+
+  const courseMap = new Map();
+  [...directCourses, ...sessionCourses].forEach((c) => {
+    courseMap.set(c._id.toString(), c);
+  });
+  const courses = Array.from(courseMap.values()).sort((a, b) => (a.code || '').localeCompare(b.code || ''));
 
   const students = await Student.find({ classBatch: batch._id, status: 'active' }).sort('rollNo');
 
@@ -299,9 +309,10 @@ const getClassBatchMatrix = async (req, res) => {
       studentOnDuty += stats.onDutyHours;
     }
 
+    const hasSessions = studentTotalHeld > 0;
     const overallPercent =
-      studentTotalHeld > 0 ? Math.round((studentTotalAttended / studentTotalHeld) * 10000) / 100 : 100;
-    const isOverallDefaulter = overallPercent < 75 || courseStats.some((c) => c.isDefaulter);
+      hasSessions ? Math.round((studentTotalAttended / studentTotalHeld) * 10000) / 100 : 0;
+    const isOverallDefaulter = hasSessions && (overallPercent < 75 || courseStats.some((c) => c.isDefaulter));
 
     matrix.push({
       student: {
@@ -318,6 +329,7 @@ const getClassBatchMatrix = async (req, res) => {
         totalHeldHours: studentTotalHeld,
         onDutyHours: studentOnDuty,
         overallPercent,
+        hasSessions,
         isDefaulter: isOverallDefaulter,
       },
     });
