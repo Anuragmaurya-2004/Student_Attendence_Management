@@ -16,6 +16,13 @@ const checkIn = async (req, res) => {
   const session = await Session.findById(sessionId);
   if (!session) return res.status(404).json({ message: 'Session not found' });
 
+  // Enforce overall 10-minute QR attendance window
+  if (session.qrWindowExpiresAt && session.qrWindowExpiresAt.getTime() < Date.now()) {
+    return res.status(400).json({
+      message: 'Attendance check-in has closed. The 10-minute QR window has expired.',
+    });
+  }
+
   const isCurrentToken = session.qrToken === token && session.qrExpiresAt?.getTime() >= Date.now();
   const isPreviousToken = session.qrPreviousToken === token && session.qrPreviousExpiresAt?.getTime() >= Date.now();
   // A short-lived rotating token limits screenshot replay; the previous token is accepted only

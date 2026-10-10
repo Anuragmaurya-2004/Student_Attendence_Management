@@ -12,6 +12,10 @@ import {
   Navigation,
   ArrowLeft,
   Sparkles,
+  Timer,
+  Lock,
+  AlertTriangle,
+  XCircle,
 } from 'lucide-react';
 
 export default function SessionDetail() {
@@ -21,10 +25,19 @@ export default function SessionDetail() {
   const [students, setStudents] = useState([]);
   const [attendance, setAttendance] = useState([]);
   const [secondsLeft, setSecondsLeft] = useState(0);
+  const [windowSecondsLeft, setWindowSecondsLeft] = useState(0);
+  const [isWindowExpired, setIsWindowExpired] = useState(false);
   const [radiusMeters, setRadiusMeters] = useState(75);
   const [locationStatus, setLocationStatus] = useState('');
   const [updatingLocation, setUpdatingLocation] = useState(false);
   const [qrLoading, setQrLoading] = useState(false);
+
+  const formatTime = (totalSeconds) => {
+    if (!totalSeconds || totalSeconds <= 0) return '00:00';
+    const m = Math.floor(totalSeconds / 60);
+    const s = totalSeconds % 60;
+    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  };
 
   const loadSession = useCallback(async () => {
     try {
@@ -57,46 +70,99 @@ export default function SessionDetail() {
     }
   }, []);
 
+  const generateQR = useCallback(async ({ showToast = true, resetWindow = false, isRotation = false, closeWindow = false } = {}) => {
+    if (showToast) setQrLoading(true);
+    try {
+      const { data } = await api.post(`/sessions/${id}/qr`, {
+        resetWindow,
+        isRotation,
+        closeWindow,
+      });
+
+      if (data.closed) {
+        setIsWindowExpired(true);
+        setWindowSecondsLeft(0);
+        if (showToast) toast('QR Check-In closed early', { icon: '🔒' });
+        return;
+      }
+
+      setQr(data);
+      setIsWindowExpired(false);
+
+      if (data.windowExpiresAt) {
+        const remaining = Math.max(0, Math.floor((new Date(data.windowExpiresAt).getTime() - Date.now()) / 1000));
+        setWindowSecondsLeft(remaining);
+        if (remaining <= 0) {
+          setIsWindowExpired(true);
+        }
+      }
+
+      if (showToast) {
+        toast.success(resetWindow ? 'New 10-minute QR check-in window activated' : 'Dynamic rotating QR code activated');
+        window.dispatchEvent(new Event('refresh-notifications'));
+      }
+      if (showToast) loadSession();
+    } catch (err) {
+      if (err.response?.data?.expired) {
+        setIsWindowExpired(true);
+        setWindowSecondsLeft(0);
+        if (showToast) toast.error('QR attendance window has expired (10 minutes completed).');
+      } else if (showToast) {
+        toast.error(err.response?.data?.message || 'Failed to generate QR');
+      }
+    } finally {
+      if (showToast) setQrLoading(false);
+    }
+  }, [id, loadSession]);
+
   useEffect(() => {
     (async () => {
       const s = await loadSession();
       if (s?.classBatch?._id) loadStudents(s.classBatch._id);
       loadAttendance();
+      // If session has an active 10m window running, resume display seamlessly
+      if (s?.qrWindowExpiresAt && new Date(s.qrWindowExpiresAt).getTime() > Date.now()) {
+        generateQR({ showToast: false, isRotation: false });
+      } else if (s?.qrWindowExpiresAt && new Date(s.qrWindowExpiresAt).getTime() <= Date.now()) {
+        setIsWindowExpired(true);
+      }
     })();
-  }, [loadSession, loadAttendance, loadStudents]);
+  }, [loadSession, loadAttendance, loadStudents, generateQR]);
 
+  // 10-minute validity window countdown timer
   useEffect(() => {
-    if (!qr?.expiresAt) return;
+    if (!qr?.windowExpiresAt) return;
+    const tick = () => {
+      const diff = Math.max(0, Math.floor((new Date(qr.windowExpiresAt).getTime() - Date.now()) / 1000));
+      setWindowSecondsLeft(diff);
+      if (diff === 0) {
+        setIsWindowExpired(true);
+      }
+    };
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [qr?.windowExpiresAt]);
+
+  // 15-second rotating token countdown timer
+  useEffect(() => {
+    if (!qr?.expiresAt || isWindowExpired || windowSecondsLeft === 0) return;
     const interval = setInterval(() => {
       const diff = Math.max(0, Math.floor((new Date(qr.expiresAt).getTime() - Date.now()) / 1000));
       setSecondsLeft(diff);
       if (diff === 0) clearInterval(interval);
     }, 1000);
     return () => clearInterval(interval);
-  }, [qr]);
+  }, [qr?.expiresAt, isWindowExpired, windowSecondsLeft]);
 
-  const generateQR = async (showToast = true) => {
-    if (showToast) setQrLoading(true);
-    try {
-      const { data } = await api.post(`/sessions/${id}/qr`);
-      setQr(data);
-      if (showToast) {
-        toast.success('Dynamic rotating QR code activated');
-        window.dispatchEvent(new Event('refresh-notifications'));
-      }
-      if (showToast) loadSession();
-    } catch (err) {
-      if (showToast) toast.error(err.response?.data?.message || 'Failed to generate QR');
-    } finally {
-      if (showToast) setQrLoading(false);
-    }
-  };
-
+  // Automatic token rotation every 15s (stops when 10m window expires)
   useEffect(() => {
-    if (!qr?.rotationIntervalSeconds) return undefined;
-    const interval = setInterval(() => generateQR(false), qr.rotationIntervalSeconds * 1000);
+    if (!qr?.rotationIntervalSeconds || isWindowExpired || windowSecondsLeft === 0) return undefined;
+    const interval = setInterval(() => {
+      generateQR({ showToast: false, isRotation: true });
+    }, qr.rotationIntervalSeconds * 1000);
     return () => clearInterval(interval);
-  }, [qr?.rotationIntervalSeconds, id]);
+  }, [qr?.rotationIntervalSeconds, isWindowExpired, windowSecondsLeft, generateQR]);
 
   const setClassroomLocation = () => {
     if (!navigator.geolocation) {
@@ -232,48 +298,177 @@ export default function SessionDetail() {
                     Dynamic QR Code Not Generated
                   </p>
                   <p className="text-xs text-slate-500 dark:text-slate-400 max-w-xs">
-                    Generate the rotating session check-in code. Tokens automatically rotate to prevent screenshot sharing.
+                    Generate the rotating session check-in code. Tokens rotate every 15s and check-in remains open for 10 minutes.
                   </p>
                   <Button
-                    onClick={() => generateQR(true)}
+                    onClick={() => generateQR({ showToast: true, resetWindow: true })}
                     loading={qrLoading}
                     icon={Sparkles}
                     className="shadow-md"
                   >
-                    Generate Rotating QR
+                    Start 10-Min QR Check-In
                   </Button>
                 </div>
               ) : (
                 <div className="w-full space-y-4">
-                  <div className="mx-auto max-w-[240px] rounded-3xl border-2 border-brand-500/30 bg-white p-3 shadow-card dark:border-brand-500/50">
+                  {/* Validity Time Counter Above QR */}
+                  <div
+                    className={`w-full max-w-sm mx-auto rounded-2xl border p-3.5 shadow-sm transition-all duration-300 ${
+                      isWindowExpired
+                        ? 'border-rose-200 bg-rose-50/90 text-rose-900 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-200'
+                        : windowSecondsLeft <= 60
+                        ? 'border-rose-300 bg-rose-50/90 text-rose-900 dark:border-rose-800 dark:bg-rose-950/60 dark:text-rose-200 animate-pulse'
+                        : windowSecondsLeft <= 180
+                        ? 'border-amber-300 bg-amber-50/90 text-amber-900 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-200'
+                        : 'border-emerald-200/90 bg-emerald-50/80 text-emerald-900 dark:border-emerald-800/60 dark:bg-emerald-950/40 dark:text-emerald-200'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2.5 text-left">
+                        <div
+                          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl shadow-sm ${
+                            isWindowExpired
+                              ? 'bg-rose-200 text-rose-700 dark:bg-rose-900/80 dark:text-rose-300'
+                              : windowSecondsLeft <= 60
+                              ? 'bg-rose-200 text-rose-700 dark:bg-rose-900 dark:text-rose-200'
+                              : windowSecondsLeft <= 180
+                              ? 'bg-amber-200 text-amber-700 dark:bg-amber-900/80 dark:text-amber-200'
+                              : 'bg-emerald-200 text-emerald-700 dark:bg-emerald-900/80 dark:text-emerald-300'
+                          }`}
+                        >
+                          {isWindowExpired ? <Lock className="h-4 w-4" /> : <Timer className="h-4 w-4" />}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <span
+                              className={`h-2 w-2 rounded-full ${
+                                isWindowExpired
+                                  ? 'bg-rose-500'
+                                  : windowSecondsLeft <= 60
+                                  ? 'bg-rose-500 animate-ping'
+                                  : windowSecondsLeft <= 180
+                                  ? 'bg-amber-500 animate-pulse'
+                                  : 'bg-emerald-500 animate-pulse'
+                              }`}
+                            />
+                            <p className="text-[11px] font-bold uppercase tracking-wider opacity-80">
+                              {isWindowExpired ? 'Check-In Closed' : 'QR Validity Counter'}
+                            </p>
+                          </div>
+                          <p className="text-xs font-semibold">
+                            {isWindowExpired ? '10-Minute Limit Reached' : 'Open for 10 min window'}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Monospace Countdown Clock */}
+                      <div className="text-right">
+                        <div className="font-mono text-2xl font-black tracking-tight leading-none">
+                          {formatTime(windowSecondsLeft)}
+                        </div>
+                        <p className="mt-0.5 text-[10px] font-semibold opacity-75">
+                          {isWindowExpired ? 'Expired' : `${Math.ceil(windowSecondsLeft / 60)}m left`}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Linear Progress Bar */}
+                    <div className="mt-2.5 h-1.5 w-full overflow-hidden rounded-full bg-slate-200/80 dark:bg-slate-800">
+                      <div
+                        className={`h-full transition-all duration-1000 ease-linear rounded-full ${
+                          isWindowExpired
+                            ? 'bg-rose-500 w-full'
+                            : windowSecondsLeft <= 60
+                            ? 'bg-rose-500'
+                            : windowSecondsLeft <= 180
+                            ? 'bg-amber-500'
+                            : 'bg-emerald-500'
+                        }`}
+                        style={{
+                          width: isWindowExpired
+                            ? '100%'
+                            : `${Math.max(0, Math.min(100, (windowSecondsLeft / (qr.windowTotalSeconds || 600)) * 100))}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* QR Image Box with Expired Overlay */}
+                  <div className="relative mx-auto max-w-[240px] rounded-3xl border-2 border-brand-500/30 bg-white p-3 shadow-card dark:border-brand-500/50">
                     <img
                       src={qr.qrDataUrl}
                       alt="Session Check-in QR"
-                      className="mx-auto h-52 w-52 rounded-2xl object-contain"
+                      className={`mx-auto h-52 w-52 rounded-2xl object-contain transition-all ${
+                        isWindowExpired ? 'opacity-20 blur-[2px]' : ''
+                      }`}
                     />
+
+                    {isWindowExpired && (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center rounded-3xl bg-slate-900/75 backdrop-blur-[2px] text-white">
+                        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-rose-500/20 text-rose-300 border border-rose-500/40 mb-2">
+                          <Lock className="h-5 w-5" />
+                        </div>
+                        <p className="text-xs font-bold uppercase tracking-wider text-rose-200">
+                          10m Window Expired
+                        </p>
+                        <p className="mt-1 text-[11px] text-slate-300 leading-tight">
+                          Check-in is closed. Students cannot scan this code.
+                        </p>
+                      </div>
+                    )}
                   </div>
 
-                  {/* Countdown Timer */}
-                  <div className="space-y-1.5 text-center">
-                    <div className="inline-flex items-center gap-1.5 rounded-full border border-indigo-200/80 bg-indigo-50 px-3 py-1 text-xs font-bold text-indigo-700 dark:border-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-300">
-                      <RefreshCw className={`h-3.5 w-3.5 ${secondsLeft > 0 ? 'animate-spin' : ''}`} />
-                      <span>{secondsLeft > 0 ? `Rotates in ${secondsLeft}s` : 'Refreshing token...'}</span>
+                  {/* Below QR: Rotation and Status Controls */}
+                  {isWindowExpired ? (
+                    <div className="pt-2 flex flex-col items-center gap-2">
+                      <p className="text-xs text-rose-600 dark:text-rose-400 font-medium">
+                        Attendance window closed after 10 minutes.
+                      </p>
+                      <Button
+                        variant="primary"
+                        icon={Sparkles}
+                        onClick={() => generateQR({ showToast: true, resetWindow: true })}
+                        loading={qrLoading}
+                        className="shadow-md"
+                      >
+                        Reopen for 10 Minutes
+                      </Button>
                     </div>
-                    <p className="text-[11px] text-slate-400">
-                      Tokens change automatically every {qr.rotationIntervalSeconds || 15}s.
-                    </p>
-                  </div>
+                  ) : (
+                    <>
+                      {/* Countdown Timer */}
+                      <div className="space-y-1.5 text-center">
+                        <div className="inline-flex items-center gap-1.5 rounded-full border border-indigo-200/80 bg-indigo-50 px-3 py-1 text-xs font-bold text-indigo-700 dark:border-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-300">
+                          <RefreshCw className={`h-3.5 w-3.5 ${secondsLeft > 0 ? 'animate-spin' : ''}`} />
+                          <span>{secondsLeft > 0 ? `Rotates in ${secondsLeft}s` : 'Refreshing token...'}</span>
+                        </div>
+                        <p className="text-[11px] text-slate-400">
+                          Tokens change automatically every {qr.rotationIntervalSeconds || 15}s.
+                        </p>
+                      </div>
 
-                  <div className="pt-2 flex justify-center">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      icon={RefreshCw}
-                      onClick={() => generateQR(true)}
-                    >
-                      Force Regenerate
-                    </Button>
-                  </div>
+                      <div className="pt-2 flex flex-wrap justify-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          icon={RefreshCw}
+                          onClick={() => generateQR({ showToast: true, resetWindow: false })}
+                          loading={qrLoading}
+                        >
+                          Force Regenerate
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          icon={XCircle}
+                          onClick={() => generateQR({ showToast: true, closeWindow: true })}
+                          className="text-rose-600 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300 border-rose-200 dark:border-rose-900/50"
+                        >
+                          Close Early
+                        </Button>
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
             </div>

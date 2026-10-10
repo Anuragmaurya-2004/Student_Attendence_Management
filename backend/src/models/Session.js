@@ -18,6 +18,8 @@ const sessionSchema = new mongoose.Schema(
     qrExpiresAt: { type: Date },
     qrPreviousToken: { type: String },
     qrPreviousExpiresAt: { type: Date },
+    qrWindowStartedAt: { type: Date },
+    qrWindowExpiresAt: { type: Date },
   },
   { timestamps: true }
 );
