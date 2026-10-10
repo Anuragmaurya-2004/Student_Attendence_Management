@@ -10,26 +10,62 @@ const DEFAULT_THRESHOLD = parseFloat(process.env.DEFAULTER_THRESHOLD_PERCENT || 
 
 /**
  * Compute attendance % for one student, in one course, split by type (theory/practical).
- * Only counts sessions with status "held" (i.e. actually took place / QR was generated).
+ * Only counts sessions with status "held" or where attendance was recorded for that student's class batch.
  * Holidays are naturally excluded because sessions are never created on holiday dates.
  */
-async function computeStudentCourseAttendance(studentId, courseId) {
+async function computeStudentCourseAttendance(studentId, courseId, classBatchId = null) {
   const course = await Course.findById(courseId);
   if (!course) throw new Error('Course not found');
 
-  const sessions = await Session.find({ course: courseId, status: 'held' });
-  const totalHeldHours = sessions.reduce((sum, s) => sum + (s.durationHours || 0), 0);
+  let batchId = classBatchId;
+  if (!batchId) {
+    const student = await Student.findById(studentId).select('classBatch');
+    batchId = student?.classBatch?._id || student?.classBatch;
+  }
 
-  const sessionIds = sessions.map((s) => s._id);
+  // Scoped to this course and student's batch
+  const sessionQuery = {
+    course: courseId,
+    status: { $ne: 'cancelled' },
+  };
+  if (batchId) {
+    sessionQuery.classBatch = batchId;
+  }
+
+  const candidateSessions = await Session.find(sessionQuery);
+  const candidateIds = candidateSessions.map((s) => s._id);
+
+  // A session is held if marked 'held' OR attendance records exist
+  const sessionsWithAttendance = await Attendance.distinct('session', {
+    session: { $in: candidateIds },
+  });
+  const attendedSessionIdSet = new Set(sessionsWithAttendance.map((id) => id.toString()));
+
+  const heldSessions = candidateSessions.filter(
+    (s) => s.status === 'held' || attendedSessionIdSet.has(s._id.toString())
+  );
+
+  const totalHeldHours = heldSessions.reduce((sum, s) => {
+    const dur = s.durationHours && s.durationHours > 0 ? s.durationHours : 1;
+    return sum + dur;
+  }, 0);
+  const heldSessionIds = heldSessions.map((s) => s._id);
+
   const attendedRecords = await Attendance.find({
-    session: { $in: sessionIds },
+    session: { $in: heldSessionIds },
     student: studentId,
     status: { $in: ['present', 'late', 'on_duty'] },
   }).populate('session');
 
   const onDutyRecords = attendedRecords.filter((a) => a.status === 'on_duty');
-  const onDutyHours = onDutyRecords.reduce((sum, a) => sum + (a.session?.durationHours || 0), 0);
-  const attendedHours = attendedRecords.reduce((sum, a) => sum + (a.session?.durationHours || 0), 0);
+  const onDutyHours = onDutyRecords.reduce((sum, a) => {
+    const dur = a.session?.durationHours && a.session.durationHours > 0 ? a.session.durationHours : 1;
+    return sum + dur;
+  }, 0);
+  const attendedHours = attendedRecords.reduce((sum, a) => {
+    const dur = a.session?.durationHours && a.session.durationHours > 0 ? a.session.durationHours : 1;
+    return sum + dur;
+  }, 0);
 
   const attendancePercent = totalHeldHours > 0 ? (attendedHours / totalHeldHours) * 100 : 100;
 
@@ -43,95 +79,190 @@ async function computeStudentCourseAttendance(studentId, courseId) {
     totalHeldHours,
     attendancePercent: Math.round(attendancePercent * 100) / 100,
     threshold: course.defaulterThresholdPercent || DEFAULT_THRESHOLD,
-    isDefaulter: attendancePercent < (course.defaulterThresholdPercent || DEFAULT_THRESHOLD),
+    isDefaulter: totalHeldHours > 0 && attendancePercent < (course.defaulterThresholdPercent || DEFAULT_THRESHOLD),
   };
 }
 
 /**
- * Compute attendance for active students with optional filtering:
+ * Compute attendance for active students with flexible filtering:
  * - academicYear: specific academic year
  * - department: restrict to a specific department (e.g. for HOD)
  * - classBatch: restrict to a specific class batch
+ * - course: restrict to a specific course
+ * - viewType: 'subject' (default, course-level) or 'overall' (class cumulative)
  * - facultyId: if provided:
- *     - If faculty is Class Teacher of a student's classBatch: all subjects for that student are included.
- *     - If faculty is NOT Class Teacher: only the specific course(s) assigned to that faculty are included.
+ *     - If teacher teaches multiple classes, shows defaulters of their assigned subject(s) only.
+ *     - If teacher is Class Teacher, can also view overall defaulters for their class.
+ *     - HOD and Admin can view overall defaulters across all batches.
  */
-async function computeAllDefaulters({ academicYear, department, classBatch, facultyId, logResults = true } = {}) {
+async function computeAllDefaulters({
+  academicYear,
+  department,
+  classBatch,
+  course,
+  facultyId,
+  viewType = 'subject',
+  logResults = true,
+} = {}) {
   const ClassBatch = require('../models/ClassBatch');
-  const studentFilter = { status: 'active' };
-  if (academicYear) studentFilter.currentAcademicYear = academicYear;
-  if (department) {
-    studentFilter.department = department;
-    const deptBatches = await ClassBatch.find({ department }).select('_id');
-    studentFilter.classBatch = { $in: deptBatches.map((b) => b._id) };
-  } else if (classBatch) {
-    studentFilter.classBatch = classBatch;
-  }
-
   let faculty = null;
   let teacherBatches = [];
+  let assignedBatches = [];
+  let allFacultyBatches = [];
   let assignedCourses = [];
 
   if (facultyId) {
     faculty = await Faculty.findById(facultyId);
     if (faculty) {
       teacherBatches = (faculty.classTeacherOf || []).map((b) => b.toString());
-      assignedCourses = (faculty.coursesAssigned || []).map((c) => c.toString());
+      assignedBatches = (faculty.classBatchesAssigned || []).map((b) => b.toString());
+      const sessionBatches = await Session.distinct('classBatch', { faculty: faculty._id });
+      allFacultyBatches = Array.from(
+        new Set([...teacherBatches, ...assignedBatches, ...sessionBatches.map((b) => b.toString())])
+      );
+
+      const assignedCourseList = (faculty.coursesAssigned || []).map((c) => c.toString());
+      const sessionCourses = await Session.distinct('course', { faculty: faculty._id });
+      assignedCourses = Array.from(
+        new Set([...assignedCourseList, ...sessionCourses.map((c) => c.toString())])
+      );
     }
   }
 
-  const students = await Student.find(studentFilter).populate('classBatch');
+  const studentFilter = { status: 'active' };
+  if (academicYear) studentFilter.currentAcademicYear = academicYear;
+
+  if (classBatch) {
+    if (facultyId && !allFacultyBatches.includes(classBatch.toString())) {
+      return [];
+    }
+    studentFilter.classBatch = classBatch;
+  } else if (facultyId) {
+    if (allFacultyBatches.length === 0) {
+      return [];
+    }
+    studentFilter.classBatch = { $in: allFacultyBatches };
+  } else if (department) {
+    studentFilter.department = department;
+    const deptBatches = await ClassBatch.find({ department }).select('_id');
+    studentFilter.classBatch = { $in: deptBatches.map((b) => b._id) };
+  }
+
+  const students = await Student.find(studentFilter).populate('classBatch').sort('rollNo');
 
   const courseFilter = {};
   if (academicYear) courseFilter.academicYear = academicYear;
   if (department) courseFilter.department = department;
+  if (course) courseFilter._id = course;
   const courses = await Course.find(courseFilter);
 
   const results = [];
 
-  for (const student of students) {
-    if (!student.classBatch) continue;
-    const studentBatchId = student.classBatch._id ? student.classBatch._id.toString() : student.classBatch.toString();
-    const isClassTeacher = teacherBatches.includes(studentBatchId);
+  if (viewType === 'overall') {
+    // Overall cumulative defaulters view (Class Teacher & HOD / Admin)
+    for (const student of students) {
+      if (!student.classBatch) continue;
+      const studentBatchId = student.classBatch._id
+        ? student.classBatch._id.toString()
+        : student.classBatch.toString();
+      const isClassTeacher = teacherBatches.includes(studentBatchId);
 
-    // If viewing as faculty, and neither class teacher nor has assigned courses, skip
-    if (facultyId && !isClassTeacher && assignedCourses.length === 0) {
-      continue;
+      // Faculty can ONLY see overall defaulters for batches where they are designated Class Teacher
+      if (facultyId && !isClassTeacher) {
+        continue;
+      }
+
+      const relevantCourses = courses.filter(
+        (c) =>
+          c.department.toString() === student.department.toString() &&
+          c.semester === student.classBatch?.semester &&
+          c.academicYear.toString() === student.currentAcademicYear.toString()
+      );
+
+      let totalAttended = 0;
+      let totalHeld = 0;
+      let totalOnDuty = 0;
+      const failingCourses = [];
+
+      for (const courseDoc of relevantCourses) {
+        const stat = await computeStudentCourseAttendance(student._id, courseDoc._id, studentBatchId);
+        totalAttended += stat.attendedHours;
+        totalHeld += stat.totalHeldHours;
+        totalOnDuty += stat.onDutyHours;
+        if (stat.isDefaulter) {
+          failingCourses.push({
+            code: courseDoc.code,
+            name: courseDoc.name,
+            attendancePercent: stat.attendancePercent,
+            threshold: stat.threshold,
+          });
+        }
+      }
+
+      const overallPercent = totalHeld > 0 ? Math.round((totalAttended / totalHeld) * 10000) / 100 : 100;
+      const isDefaulter = totalHeld > 0 && (overallPercent < DEFAULT_THRESHOLD || failingCourses.length > 0);
+
+      results.push({
+        student: student._id,
+        studentName: student.name,
+        rollNo: student.rollNo,
+        email: student.email,
+        classBatchId: studentBatchId,
+        classBatchName: student.classBatch?.name,
+        attendedHours: totalAttended,
+        onDutyHours: totalOnDuty,
+        totalHeldHours: totalHeld,
+        attendancePercent: overallPercent,
+        threshold: DEFAULT_THRESHOLD,
+        isDefaulter,
+        isOverall: true,
+        isClassTeacherView: isClassTeacher,
+        failingCoursesCount: failingCourses.length,
+        failingCoursesList: failingCourses.map((f) => `${f.code} (${f.attendancePercent}%)`).join(', '),
+      });
     }
 
-    // Match courses relevant to this student: same department + semester + academicYear
+    return results;
+  }
+
+  // viewType === 'subject'
+  for (const student of students) {
+    if (!student.classBatch) continue;
+    const studentBatchId = student.classBatch._id
+      ? student.classBatch._id.toString()
+      : student.classBatch.toString();
+    const isClassTeacher = teacherBatches.includes(studentBatchId);
+
     let relevantCourses = courses.filter(
       (c) =>
         c.department.toString() === student.department.toString() &&
-        (student.classBatch?.department?.toString() === student.department.toString() ||
-          !student.classBatch?.department) &&
         c.semester === student.classBatch?.semester &&
         c.academicYear.toString() === student.currentAcademicYear.toString()
     );
 
-    // Faculty scoping rule:
-    // - Class Teacher sees ALL courses of their class batch
-    // - Non-class-teacher sees ONLY specifically assigned courses
-    if (facultyId && !isClassTeacher) {
+    // Subject faculty scoping:
+    // When a teacher teaches multiple classes, show defaulters of their assigned subject(s) only
+    if (facultyId) {
       relevantCourses = relevantCourses.filter((c) => assignedCourses.includes(c._id.toString()));
     }
 
-    for (const course of relevantCourses) {
-      const result = await computeStudentCourseAttendance(student._id, course._id);
+    for (const courseDoc of relevantCourses) {
+      const result = await computeStudentCourseAttendance(student._id, courseDoc._id, studentBatchId);
       results.push({
         ...result,
         studentName: student.name,
         rollNo: student.rollNo,
-        courseName: course.name,
-        courseCode: course.code,
+        courseName: courseDoc.name,
+        courseCode: courseDoc.code,
         classBatchId: studentBatchId,
         classBatchName: student.classBatch?.name,
         isClassTeacherView: isClassTeacher,
+        isOverall: false,
       });
 
       if (logResults && result.isDefaulter) {
         await DefaulterLog.findOneAndUpdate(
-          { student: student._id, course: course._id, type: course.type, academicYear: course.academicYear },
+          { student: student._id, course: courseDoc._id, type: courseDoc.type, academicYear: courseDoc.academicYear },
           {
             attendancePercent: result.attendancePercent,
             attendedHours: result.attendedHours,

@@ -35,13 +35,13 @@ export default function MyClassAttendance() {
     setLoading(true);
     try {
       const res = await api.get('/academic/class-batches');
-      // If faculty, filter to batches where user is classTeacher or in user.classTeacherOf
+      const currentUserId = (user?.id || user?._id)?.toString();
       const myBatches = res.data.filter((b) => {
-        const teacherId = b.classTeacher?._id || b.classTeacher;
+        const teacherId = (b.classTeacher?._id || b.classTeacher)?.toString();
         const inUserList = (user?.classTeacherOf || []).some(
           (tb) => (tb._id || tb).toString() === b._id.toString()
         );
-        return teacherId?.toString() === user?.id?.toString() || inUserList || user?.role === 'admin';
+        return teacherId === currentUserId || inUserList || user?.role === 'admin';
       });
 
       setBatches(myBatches);

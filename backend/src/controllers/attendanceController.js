@@ -111,6 +111,11 @@ const markManual = async (req, res) => {
     { new: true, upsert: true, setDefaultsOnInsert: true }
   );
 
+  if (session.status !== 'held') {
+    session.status = 'held';
+    await session.save();
+  }
+
   try {
     const populated = await Session.findById(sessionId).populate('course');
     await createNotification({
@@ -155,6 +160,11 @@ const markBulk = async (req, res) => {
     },
   }));
   const result = await Attendance.bulkWrite(ops);
+
+  if (session.status !== 'held') {
+    session.status = 'held';
+    await session.save();
+  }
 
   try {
     const populated = await Session.findById(sessionId).populate('course classBatch');
@@ -251,11 +261,15 @@ const getClassBatchMatrix = async (req, res) => {
     }
   }
 
-  const courses = await Course.find({
+  const courseQuery = {
     department: batch.department?._id || batch.department,
     semester: batch.semester,
-    academicYear: batch.academicYear?._id || batch.academicYear,
-  }).sort('code');
+  };
+  const batchYear = batch.academicYear?._id || batch.academicYear;
+  if (batchYear) {
+    courseQuery.academicYear = batchYear;
+  }
+  const courses = await Course.find(courseQuery).sort('code');
 
   const students = await Student.find({ classBatch: batch._id, status: 'active' }).sort('rollNo');
 
@@ -267,7 +281,7 @@ const getClassBatchMatrix = async (req, res) => {
     let studentOnDuty = 0;
 
     for (const course of courses) {
-      const stats = await computeStudentCourseAttendance(student._id, course._id);
+      const stats = await computeStudentCourseAttendance(student._id, course._id, batch._id);
       courseStats.push({
         courseId: course._id,
         courseName: course.name,

@@ -90,6 +90,9 @@ const markUnscannedStudentsAbsent = async (sessionId, markedById = null) => {
   }
 
   session.absentMarkedAt = new Date();
+  if (session.status !== 'held') {
+    session.status = 'held';
+  }
   await session.save();
 
   // Notify students marked absent

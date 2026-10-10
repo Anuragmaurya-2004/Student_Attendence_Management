@@ -56,7 +56,9 @@ const facultyLogin = async (req, res) => {
   const faculty = await Faculty.findOne({ email })
     .select('+password')
     .populate('department', 'name code')
-    .populate('classTeacherOf', 'name semester');
+    .populate('classTeacherOf', 'name semester')
+    .populate('classBatchesAssigned', 'name semester')
+    .populate('coursesAssigned', 'name code type');
 
   console.log('[Backend Auth] faculty lookup result', {
     found: !!faculty,

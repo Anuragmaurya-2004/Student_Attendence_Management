@@ -15,6 +15,8 @@ router.get('/defaulters/excel', async (req, res) => {
     academicYear: req.query.academicYear,
     department: deptScope || req.query.department,
     classBatch: req.query.classBatch,
+    course: req.query.course,
+    viewType: req.query.viewType || 'subject',
     logResults: false,
   };
   if (req.user.role === 'faculty') {
@@ -25,17 +27,31 @@ router.get('/defaulters/excel', async (req, res) => {
 
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet('Defaulters');
-  sheet.columns = [
-    { header: 'Roll No', key: 'rollNo', width: 15 },
-    { header: 'Student Name', key: 'studentName', width: 25 },
-    { header: 'Course', key: 'courseName', width: 25 },
-    { header: 'Type', key: 'type', width: 12 },
-    { header: 'Attended Hours', key: 'attendedHours', width: 15 },
-    { header: 'On-Duty Hours', key: 'onDutyHours', width: 15 },
-    { header: 'Total Held Hours', key: 'totalHeldHours', width: 15 },
-    { header: 'Attendance %', key: 'attendancePercent', width: 15 },
-    { header: 'Threshold %', key: 'threshold', width: 12 },
-  ];
+
+  if (options.viewType === 'overall') {
+    sheet.columns = [
+      { header: 'Roll No', key: 'rollNo', width: 15 },
+      { header: 'Student Name', key: 'studentName', width: 25 },
+      { header: 'Class / Batch', key: 'classBatchName', width: 20 },
+      { header: 'Total Attended (Hrs)', key: 'attendedHours', width: 20 },
+      { header: 'Total Held (Hrs)', key: 'totalHeldHours', width: 20 },
+      { header: 'Cumulative %', key: 'attendancePercent', width: 15 },
+      { header: 'Shortage Subjects', key: 'failingCoursesList', width: 35 },
+    ];
+  } else {
+    sheet.columns = [
+      { header: 'Roll No', key: 'rollNo', width: 15 },
+      { header: 'Student Name', key: 'studentName', width: 25 },
+      { header: 'Class / Batch', key: 'classBatchName', width: 20 },
+      { header: 'Course', key: 'courseName', width: 25 },
+      { header: 'Type', key: 'type', width: 12 },
+      { header: 'Attended Hours', key: 'attendedHours', width: 15 },
+      { header: 'On-Duty Hours', key: 'onDutyHours', width: 15 },
+      { header: 'Total Held Hours', key: 'totalHeldHours', width: 15 },
+      { header: 'Attendance %', key: 'attendancePercent', width: 15 },
+      { header: 'Threshold %', key: 'threshold', width: 12 },
+    ];
+  }
   results.forEach((r) => sheet.addRow(r));
   sheet.getRow(1).font = { bold: true };
 
@@ -52,6 +68,8 @@ router.get('/defaulters/pdf', async (req, res) => {
     academicYear: req.query.academicYear,
     department: deptScope || req.query.department,
     classBatch: req.query.classBatch,
+    course: req.query.course,
+    viewType: req.query.viewType || 'subject',
     logResults: false,
   };
   if (req.user.role === 'faculty') {
@@ -66,15 +84,28 @@ router.get('/defaulters/pdf', async (req, res) => {
   const doc = new PDFDocument({ margin: 30, size: 'A4' });
   doc.pipe(res);
 
-  doc.fontSize(16).text('Attendance Defaulter Report', { align: 'center' });
+  doc.fontSize(16).text(
+    options.viewType === 'overall'
+      ? 'Overall Class Attendance Defaulters Report'
+      : 'Subject Attendance Defaulter Report',
+    { align: 'center' }
+  );
   doc.moveDown();
 
   results.forEach((r, idx) => {
-    doc
-      .fontSize(10)
-      .text(
-        `${idx + 1}. ${r.rollNo} - ${r.studentName} | ${r.courseName} (${r.type}) | ${r.attendancePercent}% (Attended: ${r.attendedHours}h, OD: ${r.onDutyHours || 0}h, Total: ${r.totalHeldHours}h | Min ${r.threshold}%)`
-      );
+    if (options.viewType === 'overall') {
+      doc
+        .fontSize(10)
+        .text(
+          `${idx + 1}. ${r.rollNo} - ${r.studentName} (${r.classBatchName || 'Class'}) | Overall: ${r.attendancePercent}% (${r.attendedHours}/${r.totalHeldHours}h) | Defaulter in: ${r.failingCoursesList || 'None'}`
+        );
+    } else {
+      doc
+        .fontSize(10)
+        .text(
+          `${idx + 1}. ${r.rollNo} - ${r.studentName} (${r.classBatchName || 'Class'}) | ${r.courseName} (${r.type}) | ${r.attendancePercent}% (Attended: ${r.attendedHours}h, OD: ${r.onDutyHours || 0}h, Total: ${r.totalHeldHours}h | Min ${r.threshold}%)`
+        );
+    }
   });
 
   if (results.length === 0) {

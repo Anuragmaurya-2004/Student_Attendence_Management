@@ -17,6 +17,8 @@ router.get('/all', authorize('admin', 'faculty'), async (req, res) => {
     academicYear: req.query.academicYear,
     department: deptScope || req.query.department,
     classBatch: req.query.classBatch,
+    course: req.query.course,
+    viewType: req.query.viewType || 'subject',
     logResults: false,
   };
   if (req.user.role === 'faculty') {
@@ -33,6 +35,8 @@ router.get('/defaulters', authorize('admin', 'faculty'), async (req, res) => {
     academicYear: req.query.academicYear,
     department: deptScope || req.query.department,
     classBatch: req.query.classBatch,
+    course: req.query.course,
+    viewType: req.query.viewType || 'subject',
     logResults: false,
   };
   if (req.user.role === 'faculty') {
