@@ -5,6 +5,8 @@ const Holiday = require('../models/Holiday');
 const ClassBatch = require('../models/ClassBatch');
 const Course = require('../models/Course');
 const Faculty = require('../models/Faculty');
+const Student = require('../models/Student');
+const Attendance = require('../models/Attendance');
 const { DEFAULT_RADIUS_METERS, validateLocation } = require('../services/geofenceService');
 const { createNotification } = require('../utils/notificationService');
 
@@ -12,6 +14,107 @@ const QR_VALID_SECONDS = parseInt(process.env.QR_TOKEN_VALID_SECONDS || '20', 10
 const QR_ROTATION_INTERVAL_SECONDS = parseInt(process.env.QR_ROTATION_INTERVAL_SECONDS || '15', 10);
 const QR_GRACE_SECONDS = parseInt(process.env.QR_TOKEN_GRACE_SECONDS || '5', 10);
 const QR_WINDOW_MINUTES = parseInt(process.env.QR_TOKEN_VALID_MINUTES || '10', 10);
+
+const activeSessionTimers = new Map();
+
+/**
+ * Automatically marks all unscanned students in the session's class batch as 'absent'.
+ * Preserves students already marked 'present', 'late', or 'on_duty'.
+ */
+const markUnscannedStudentsAbsent = async (sessionId, markedById = null) => {
+  const sessionIdStr = sessionId.toString();
+  if (activeSessionTimers.has(sessionIdStr)) {
+    clearTimeout(activeSessionTimers.get(sessionIdStr));
+    activeSessionTimers.delete(sessionIdStr);
+  }
+
+  const session = await Session.findById(sessionId);
+  if (!session) return { markedAbsent: 0, totalStudents: 0 };
+
+  const students = await Student.find({
+    classBatch: session.classBatch,
+    status: 'active',
+  });
+
+  if (!students.length) return { markedAbsent: 0, totalStudents: 0 };
+
+  const existingAttendance = await Attendance.find({ session: session._id });
+  const existingMap = new Map();
+  existingAttendance.forEach((rec) => {
+    existingMap.set(rec.student.toString(), rec);
+  });
+
+  const ops = [];
+  const newlyAbsentStudents = [];
+
+  for (const student of students) {
+    const sId = student._id.toString();
+    const existing = existingMap.get(sId);
+
+    if (!existing) {
+      ops.push({
+        updateOne: {
+          filter: { session: session._id, student: student._id },
+          update: {
+            $set: {
+              status: 'absent',
+              method: 'manual',
+              markedAt: new Date(),
+              markedBy: markedById || session.faculty,
+            },
+          },
+          upsert: true,
+        },
+      });
+      newlyAbsentStudents.push(student);
+    } else if (existing.status === 'unmarked') {
+      ops.push({
+        updateOne: {
+          filter: { _id: existing._id },
+          update: {
+            $set: {
+              status: 'absent',
+              method: 'manual',
+              markedAt: new Date(),
+              markedBy: markedById || session.faculty,
+            },
+          },
+        },
+      });
+      newlyAbsentStudents.push(student);
+    }
+  }
+
+  if (ops.length > 0) {
+    await Attendance.bulkWrite(ops);
+  }
+
+  session.absentMarkedAt = new Date();
+  await session.save();
+
+  // Notify students marked absent
+  try {
+    const courseDoc = await Course.findById(session.course);
+    for (const student of newlyAbsentStudents) {
+      await createNotification({
+        title: 'Marked Absent',
+        message: `You were marked absent for ${courseDoc?.code || 'class'} (QR attendance timer ended).`,
+        type: 'warning',
+        link: '/student',
+        recipient: student._id,
+        recipientModel: 'Student',
+        recipientRole: 'student',
+      });
+    }
+  } catch (notifErr) {
+    console.error('Notification error on absent marking:', notifErr);
+  }
+
+  return {
+    markedAbsent: ops.length,
+    totalStudents: students.length,
+  };
+};
 
 // @desc Create a session (class/lab slot). Faculty/Admin only.
 // @route POST /api/sessions
@@ -99,6 +202,7 @@ const generateSessionQR = async (req, res) => {
   }
 
   const now = Date.now();
+  const sessionIdStr = session._id.toString();
   const { isRotation, resetWindow, closeWindow } = req.body || {};
 
   // If faculty explicitly requests to close the QR check-in window early
@@ -106,30 +210,44 @@ const generateSessionQR = async (req, res) => {
     session.qrWindowExpiresAt = new Date(now);
     session.qrExpiresAt = new Date(now);
     await session.save();
+
+    if (activeSessionTimers.has(sessionIdStr)) {
+      clearTimeout(activeSessionTimers.get(sessionIdStr));
+      activeSessionTimers.delete(sessionIdStr);
+    }
+
+    const absentResult = await markUnscannedStudentsAbsent(session._id, req.user.id);
     return res.json({
       closed: true,
-      message: 'QR check-in window closed.',
+      message: `QR check-in window closed. ${absentResult.markedAbsent} unscanned student(s) marked absent.`,
       windowExpiresAt: session.qrWindowExpiresAt,
       isExpired: true,
+      ...absentResult,
     });
   }
 
   const isWindowExpired = session.qrWindowExpiresAt && session.qrWindowExpiresAt.getTime() <= now;
 
-  // If this is an automated 15s rotation and the 10-minute window has expired, refuse rotation
+  // If this is an automated 15s rotation and the window has expired, finalize absent students
   if (isRotation && isWindowExpired) {
+    let absentResult = { markedAbsent: 0, totalStudents: 0 };
+    if (!session.absentMarkedAt) {
+      absentResult = await markUnscannedStudentsAbsent(session._id, req.user.id);
+    }
     return res.status(400).json({
       expired: true,
-      message: 'QR check-in window has expired (10-minute limit reached).',
+      message: `QR check-in window has expired (${QR_WINDOW_MINUTES}-minute limit reached). ${absentResult.markedAbsent} unscanned student(s) marked absent.`,
       windowExpiresAt: session.qrWindowExpiresAt,
+      ...absentResult,
     });
   }
 
   let isNewWindow = false;
-  // Initialize or restart 10-minute window
+  // Initialize or restart window
   if (resetWindow || !session.qrWindowExpiresAt || isWindowExpired) {
     session.qrWindowStartedAt = new Date(now);
     session.qrWindowExpiresAt = new Date(now + QR_WINDOW_MINUTES * 60 * 1000);
+    session.absentMarkedAt = null;
     isNewWindow = true;
   }
 
@@ -141,6 +259,23 @@ const generateSessionQR = async (req, res) => {
   session.qrExpiresAt = new Date(now + QR_VALID_SECONDS * 1000);
   session.status = 'held';
   await session.save();
+
+  // Schedule server-side timer to auto-mark unscanned students as absent when window expires
+  if (activeSessionTimers.has(sessionIdStr)) {
+    clearTimeout(activeSessionTimers.get(sessionIdStr));
+    activeSessionTimers.delete(sessionIdStr);
+  }
+  const remainingMs = Math.max(0, session.qrWindowExpiresAt.getTime() - Date.now());
+  const timer = setTimeout(async () => {
+    try {
+      await markUnscannedStudentsAbsent(session._id);
+    } catch (err) {
+      console.error('Auto absent timer error:', err);
+    } finally {
+      activeSessionTimers.delete(sessionIdStr);
+    }
+  }, remainingMs);
+  activeSessionTimers.set(sessionIdStr, timer);
 
   // Send notification only when a new QR window starts, rather than spamming on every 15s rotation
   if (isNewWindow) {
@@ -172,6 +307,29 @@ const generateSessionQR = async (req, res) => {
     windowStartedAt: session.qrWindowStartedAt,
     windowTotalSeconds: QR_WINDOW_MINUTES * 60,
     isExpired: false,
+  });
+};
+
+// @desc Explicitly finalize session attendance and mark unscanned students absent
+// @route POST /api/sessions/:id/finalize-absent
+const finalizeSessionAbsent = async (req, res) => {
+  const session = await Session.findById(req.params.id);
+  if (!session) return res.status(404).json({ message: 'Session not found' });
+  if (req.user.role === 'faculty' && session.faculty.toString() !== req.user.id) {
+    return res.status(403).json({ message: 'Not your session' });
+  }
+
+  session.qrWindowExpiresAt = new Date();
+  session.qrExpiresAt = new Date();
+  await session.save();
+
+  const result = await markUnscannedStudentsAbsent(session._id, req.user.id);
+  const updatedSession = await Session.findById(session._id).populate('course classBatch faculty');
+
+  res.json({
+    message: `Attendance finalized. ${result.markedAbsent} unscanned student(s) marked absent.`,
+    session: updatedSession,
+    ...result,
   });
 };
 
@@ -221,9 +379,28 @@ const listSessions = async (req, res) => {
 };
 
 const getSession = async (req, res) => {
-  const session = await Session.findById(req.params.id).populate('course classBatch faculty');
+  let session = await Session.findById(req.params.id);
   if (!session) return res.status(404).json({ message: 'Not found' });
+
+  // If QR window has expired and unscanned students haven't been marked absent yet, mark them now
+  if (
+    session.qrWindowExpiresAt &&
+    session.qrWindowExpiresAt.getTime() <= Date.now() &&
+    !session.absentMarkedAt
+  ) {
+    await markUnscannedStudentsAbsent(session._id);
+  }
+
+  session = await Session.findById(req.params.id).populate('course classBatch faculty');
   res.json(session);
 };
 
-module.exports = { createSession, generateSessionQR, updateSessionLocation, listSessions, getSession };
+module.exports = {
+  createSession,
+  generateSessionQR,
+  finalizeSessionAbsent,
+  markUnscannedStudentsAbsent,
+  updateSessionLocation,
+  listSessions,
+  getSession,
+};

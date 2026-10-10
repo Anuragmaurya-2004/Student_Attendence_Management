@@ -82,7 +82,8 @@ export default function SessionDetail() {
       if (data.closed) {
         setIsWindowExpired(true);
         setWindowSecondsLeft(0);
-        if (showToast) toast('QR Check-In closed early', { icon: '🔒' });
+        if (showToast) toast.success(data.message || 'QR Check-In closed. Unscanned students marked absent.');
+        loadAttendance();
         return;
       }
 
@@ -94,6 +95,7 @@ export default function SessionDetail() {
         setWindowSecondsLeft(remaining);
         if (remaining <= 0) {
           setIsWindowExpired(true);
+          loadAttendance();
         }
       }
 
@@ -106,14 +108,15 @@ export default function SessionDetail() {
       if (err.response?.data?.expired) {
         setIsWindowExpired(true);
         setWindowSecondsLeft(0);
-        if (showToast) toast.error('QR attendance window has expired (10 minutes completed).');
+        loadAttendance();
+        if (showToast) toast.error(err.response?.data?.message || 'QR attendance window has expired (10 minutes completed). Unscanned students marked absent.');
       } else if (showToast) {
         toast.error(err.response?.data?.message || 'Failed to generate QR');
       }
     } finally {
       if (showToast) setQrLoading(false);
     }
-  }, [id, loadSession]);
+  }, [id, loadSession, loadAttendance]);
 
   useEffect(() => {
     (async () => {
@@ -132,17 +135,47 @@ export default function SessionDetail() {
   // 10-minute validity window countdown timer
   useEffect(() => {
     if (!qr?.windowExpiresAt) return;
-    const tick = () => {
+    let finalized = false;
+    const tick = async () => {
       const diff = Math.max(0, Math.floor((new Date(qr.windowExpiresAt).getTime() - Date.now()) / 1000));
       setWindowSecondsLeft(diff);
       if (diff === 0) {
         setIsWindowExpired(true);
+        if (!finalized) {
+          finalized = true;
+          try {
+            const res = await api.post(`/sessions/${id}/finalize-absent`);
+            toast.success(res.data?.message || 'QR timer ended. Unscanned students marked absent.');
+          } catch (err) {
+            console.error('Finalize absent error:', err);
+          } finally {
+            loadAttendance();
+          }
+        }
       }
     };
     tick();
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
-  }, [qr?.windowExpiresAt]);
+  }, [qr?.windowExpiresAt, id, loadAttendance]);
+
+  // Automatic token rotation every 15s (stops when 10m window expires)
+  useEffect(() => {
+    if (!qr?.rotationIntervalSeconds || isWindowExpired || windowSecondsLeft === 0) return undefined;
+    const interval = setInterval(() => {
+      generateQR({ showToast: false, isRotation: true });
+    }, qr.rotationIntervalSeconds * 1000);
+    return () => clearInterval(interval);
+  }, [qr?.rotationIntervalSeconds, isWindowExpired, windowSecondsLeft, generateQR]);
+
+  // Auto-refresh live roll call every 5 seconds while QR window is actively counting down
+  useEffect(() => {
+    if (!qr || isWindowExpired || windowSecondsLeft === 0) return undefined;
+    const interval = setInterval(() => {
+      loadAttendance();
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [qr, isWindowExpired, windowSecondsLeft, loadAttendance]);
 
   // 15-second rotating token countdown timer
   useEffect(() => {
@@ -154,15 +187,6 @@ export default function SessionDetail() {
     }, 1000);
     return () => clearInterval(interval);
   }, [qr?.expiresAt, isWindowExpired, windowSecondsLeft]);
-
-  // Automatic token rotation every 15s (stops when 10m window expires)
-  useEffect(() => {
-    if (!qr?.rotationIntervalSeconds || isWindowExpired || windowSecondsLeft === 0) return undefined;
-    const interval = setInterval(() => {
-      generateQR({ showToast: false, isRotation: true });
-    }, qr.rotationIntervalSeconds * 1000);
-    return () => clearInterval(interval);
-  }, [qr?.rotationIntervalSeconds, isWindowExpired, windowSecondsLeft, generateQR]);
 
   const setClassroomLocation = () => {
     if (!navigator.geolocation) {
@@ -228,6 +252,7 @@ export default function SessionDetail() {
 
   const attendanceMarked = attendance.filter((item) => item.status !== 'unmarked').length;
   const presentCount = attendance.filter((item) => ['present', 'late', 'on_duty'].includes(item.status)).length;
+  const absentCount = attendance.filter((item) => item.status === 'absent').length;
   const attendancePercent = students.length > 0 ? Math.round((presentCount / students.length) * 100) : 0;
 
   return (
@@ -264,7 +289,7 @@ export default function SessionDetail() {
         </div>
 
         {/* Live Counters */}
-        <div className="mt-6 grid gap-3 sm:grid-cols-4">
+        <div className="mt-6 grid gap-3 sm:grid-cols-5">
           <div className="rounded-2xl border border-white/15 bg-white/10 p-3.5 backdrop-blur-md">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-indigo-100">Cohort Enrolled</p>
             <p className="mt-1 text-2xl font-extrabold text-white">{students.length}</p>
@@ -276,6 +301,10 @@ export default function SessionDetail() {
           <div className="rounded-2xl border border-white/15 bg-white/10 p-3.5 backdrop-blur-md">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-indigo-100">Verified Present</p>
             <p className="mt-1 text-2xl font-extrabold text-white">{presentCount}</p>
+          </div>
+          <div className="rounded-2xl border border-white/15 bg-white/10 p-3.5 backdrop-blur-md">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-indigo-100">Marked Absent</p>
+            <p className="mt-1 text-2xl font-extrabold text-white">{absentCount}</p>
           </div>
           <div className="rounded-2xl border border-white/15 bg-white/10 p-3.5 backdrop-blur-md">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-indigo-100">Turnout %</p>
@@ -562,6 +591,9 @@ export default function SessionDetail() {
                         <option value="late">Late</option>
                         <option value="on_duty">On Duty (OD)</option>
                       </Select>
+                      {current === 'present' && <Badge color="green">Present</Badge>}
+                      {current === 'absent' && <Badge color="red">Absent</Badge>}
+                      {current === 'late' && <Badge color="yellow">Late</Badge>}
                       {current === 'on_duty' && <Badge color="purple">OD</Badge>}
                     </div>
                   );

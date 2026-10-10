@@ -16,10 +16,14 @@ const checkIn = async (req, res) => {
   const session = await Session.findById(sessionId);
   if (!session) return res.status(404).json({ message: 'Session not found' });
 
-  // Enforce overall 10-minute QR attendance window
+  // Enforce overall QR attendance window
   if (session.qrWindowExpiresAt && session.qrWindowExpiresAt.getTime() < Date.now()) {
+    if (!session.absentMarkedAt) {
+      const { markUnscannedStudentsAbsent } = require('./sessionController');
+      await markUnscannedStudentsAbsent(session._id);
+    }
     return res.status(400).json({
-      message: 'Attendance check-in has closed. The 10-minute QR window has expired.',
+      message: 'Attendance check-in has closed. The QR window has expired.',
     });
   }
 
@@ -48,12 +52,23 @@ const checkIn = async (req, res) => {
   if (!locationCheck.ok) return res.status(400).json({ message: locationCheck.message });
 
   try {
-    const attendance = await Attendance.create({
-      session: sessionId,
-      student: req.user.id,
-      status: 'present',
-      method: 'qr',
-    });
+    let attendance = await Attendance.findOne({ session: sessionId, student: req.user.id });
+    if (attendance) {
+      if (attendance.status === 'present' || attendance.status === 'late') {
+        return res.status(400).json({ message: 'Attendance already marked for this session' });
+      }
+      attendance.status = 'present';
+      attendance.method = 'qr';
+      attendance.markedAt = new Date();
+      await attendance.save();
+    } else {
+      attendance = await Attendance.create({
+        session: sessionId,
+        student: req.user.id,
+        status: 'present',
+        method: 'qr',
+      });
+    }
 
     try {
       const populated = await Session.findById(sessionId).populate('course');
