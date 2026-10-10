@@ -1,39 +1,67 @@
-// Email is sent over Resend's HTTPS API, not SMTP. Render, Railway and most
-// free-tier hosts block outbound SMTP ports (25/465/587) to prevent spam
-// abuse - this has nothing to do with correct credentials or code, the
-// connection is dropped at the network level before it ever reaches Gmail
-// or any other SMTP server. HTTPS (port 443) is never blocked, so routing
-// mail through a provider's API instead of raw SMTP sidesteps the problem
-// entirely, on any host.
+// Email is sent over HTTPS (port 443), bypassing blocked outbound SMTP ports (25/465/587) on Railway/Render.
+// Supports:
+// 1. Google Apps Script Webhook (free, sends from Gmail without domain verification)
+// 2. Resend HTTPS API (fallback)
 const { Resend } = require('resend');
 
 let resendClient;
 
-function getClient() {
-  if (!resendClient) {
+function getResendClient() {
+  if (!resendClient && process.env.RESEND_API_KEY) {
     resendClient = new Resend(process.env.RESEND_API_KEY);
   }
   return resendClient;
 }
 
 async function sendMail({ to, subject, html }) {
-  if (!process.env.RESEND_API_KEY) {
-    console.warn('[Mail] RESEND_API_KEY not configured, skipping email to', to);
-    return { skipped: true };
+  // 1. Primary: Google Apps Script Webhook (no custom domain required, works directly on Railway)
+  if (process.env.GOOGLE_APPS_SCRIPT_URL) {
+    try {
+      const response = await fetch(process.env.GOOGLE_APPS_SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to,
+          subject,
+          html,
+          secret: process.env.GOOGLE_APPS_SCRIPT_SECRET || 'MY_CUSTOM_SECRET_KEY',
+        }),
+        redirect: 'follow',
+      });
+
+      const result = await response.json().catch(() => ({}));
+      if (result.error) {
+        console.error('[Mail] Google Apps Script webhook returned error:', result.error);
+        throw new Error(result.error);
+      }
+      return { success: true, method: 'google_apps_script', ...result };
+    } catch (err) {
+      console.error('[Mail] Google Apps Script send failed:', err.message);
+      if (!process.env.RESEND_API_KEY) {
+        throw err;
+      }
+      console.warn('[Mail] Falling back to Resend API...');
+    }
   }
 
-  const { data, error } = await getClient().emails.send({
-    from: process.env.MAIL_FROM || 'onboarding@resend.dev',
-    to,
-    subject,
-    html,
-  });
+  // 2. Fallback: Resend API
+  if (process.env.RESEND_API_KEY) {
+    const { data, error } = await getResendClient().emails.send({
+      from: process.env.MAIL_FROM || 'onboarding@resend.dev',
+      to,
+      subject,
+      html,
+    });
 
-  if (error) {
-    console.error('[Mail] Resend send failed:', error);
-    throw new Error(error.message || 'Failed to send email');
+    if (error) {
+      console.error('[Mail] Resend send failed:', error);
+      throw new Error(error.message || 'Failed to send email');
+    }
+    return data;
   }
-  return data;
+
+  console.warn('[Mail] Neither GOOGLE_APPS_SCRIPT_URL nor RESEND_API_KEY is configured, skipping email to', to);
+  return { skipped: true };
 }
 
 function defaulterEmailTemplate({ studentName, courseName, type, attendancePercent, threshold, recipientType = 'student' }) {
