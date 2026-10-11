@@ -10,9 +10,9 @@ const Attendance = require('../models/Attendance');
 const { DEFAULT_RADIUS_METERS, validateLocation } = require('../services/geofenceService');
 const { createNotification } = require('../utils/notificationService');
 
-const QR_VALID_SECONDS = parseInt(process.env.QR_TOKEN_VALID_SECONDS || '20', 10);
-const QR_ROTATION_INTERVAL_SECONDS = parseInt(process.env.QR_ROTATION_INTERVAL_SECONDS || '15', 10);
-const QR_GRACE_SECONDS = parseInt(process.env.QR_TOKEN_GRACE_SECONDS || '5', 10);
+const QR_VALID_SECONDS = parseInt(process.env.QR_TOKEN_VALID_SECONDS || '25', 10);
+const QR_ROTATION_INTERVAL_SECONDS = parseInt(process.env.QR_ROTATION_INTERVAL_SECONDS || '20', 10);
+const QR_GRACE_SECONDS = parseInt(process.env.QR_TOKEN_GRACE_SECONDS || '15', 10);
 const QR_WINDOW_MINUTES = parseInt(process.env.QR_TOKEN_VALID_MINUTES || '10', 10);
 
 const activeSessionTimers = new Map();

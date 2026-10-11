@@ -28,9 +28,16 @@ const SCANNER_ELEMENT_ID = 'qr-reader-container';
  * 3. Returns null if unavailable or denied so backend can allow check-in
  *    if classroom does not mandate a geofence.
  */
+const cachedCoords = { data: null, timestamp: 0 };
+
 const fetchStudentCoordinates = async () => {
   if (typeof navigator === 'undefined' || !navigator.geolocation) {
     return null;
+  }
+
+  // Return fresh cached coordinates (within last 35 seconds) if available
+  if (cachedCoords.data && Date.now() - cachedCoords.timestamp < 35000) {
+    return cachedCoords.data;
   }
 
   const getPosition = (options) =>
@@ -41,27 +48,33 @@ const fetchStudentCoordinates = async () => {
   try {
     const highAcc = await getPosition({
       enableHighAccuracy: true,
-      timeout: 5000,
-      maximumAge: 5000,
+      timeout: 4000,
+      maximumAge: 30000,
     });
-    return {
+    const result = {
       latitude: highAcc.coords.latitude,
       longitude: highAcc.coords.longitude,
       accuracy: highAcc.coords.accuracy,
     };
+    cachedCoords.data = result;
+    cachedCoords.timestamp = Date.now();
+    return result;
   } catch (highErr) {
     // If high accuracy timed out or failed, try standard accuracy
     try {
       const lowAcc = await getPosition({
         enableHighAccuracy: false,
-        timeout: 7000,
-        maximumAge: 30000,
+        timeout: 4000,
+        maximumAge: 60000,
       });
-      return {
+      const result = {
         latitude: lowAcc.coords.latitude,
         longitude: lowAcc.coords.longitude,
         accuracy: lowAcc.coords.accuracy,
       };
+      cachedCoords.data = result;
+      cachedCoords.timestamp = Date.now();
+      return result;
     } catch {
       return null;
     }
@@ -86,8 +99,10 @@ export default function ScanQR() {
   const scanHandledRef = useRef(false);
   const fileInputRef = useRef(null);
 
-  // Load available camera devices on mount
+  // Warm up GPS location and load available camera devices on mount
   useEffect(() => {
+    fetchStudentCoordinates().catch(() => {});
+
     Html5Qrcode.getCameras()
       .then((devices) => {
         if (devices && devices.length > 0) {
@@ -150,6 +165,7 @@ export default function ScanQR() {
       let message = err.response?.data?.message || 'Check-in failed. Please try again.';
       setResult({ success: false, message });
       toast.error(message);
+      scanHandledRef.current = false;
     } finally {
       setVerifying(false);
     }
@@ -182,6 +198,7 @@ export default function ScanQR() {
         message: 'Invalid QR code. Please scan the official attendance code from your instructor.',
       });
       toast.error('Unrecognized QR code format.');
+      scanHandledRef.current = false;
       return;
     }
 
@@ -204,8 +221,15 @@ export default function ScanQR() {
     setScanning(true);
 
     const config = {
-      fps: 10,
-      qrbox: { width: 250, height: 250 },
+      fps: 15,
+      qrbox: (viewfinderWidth, viewfinderHeight) => {
+        const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
+        const edge = Math.floor(minEdge * 0.8);
+        return {
+          width: Math.max(200, Math.min(edge, 340)),
+          height: Math.max(200, Math.min(edge, 340)),
+        };
+      },
       aspectRatio: 1.0,
     };
 
@@ -564,11 +588,25 @@ export default function ScanQR() {
               )}
 
               {result && !result.success && (
-                <div className="w-full max-w-md rounded-2xl border border-rose-200 bg-rose-50 p-4 text-center text-xs font-semibold text-rose-800 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-300">
+                <div className="w-full max-w-md rounded-2xl border border-rose-200 bg-rose-50 p-4 text-center text-xs font-semibold text-rose-800 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-300 flex flex-col items-center gap-2">
                   <div className="flex items-center justify-center gap-2">
                     <AlertCircle className="h-4 w-4 text-rose-600 shrink-0" />
                     <span>{result.message}</span>
                   </div>
+                  {activeTab === 'camera' && !scanning && (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      icon={RefreshCw}
+                      onClick={() => {
+                        setResult(null);
+                        startScanning();
+                      }}
+                      className="mt-1 text-xs"
+                    >
+                      Restart Camera & Try Again
+                    </Button>
+                  )}
                 </div>
               )}
             </>
