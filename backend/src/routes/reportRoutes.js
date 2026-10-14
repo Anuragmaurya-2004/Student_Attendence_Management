@@ -79,10 +79,54 @@ router.get('/student/:studentId/course/:courseId', async (req, res) => {
   res.json(result);
 });
 
-// Manually trigger the notification cron (admin only) - useful for testing
-router.post('/run-notifications', authorize('admin'), async (req, res) => {
-  await runDefaulterCheckAndNotify();
-  res.json({ message: 'Defaulter check + notifications triggered' });
+// Trigger defaulter email notifications (HOD, Admin, Class Teacher)
+router.post('/run-notifications', authorize('admin', 'faculty'), async (req, res) => {
+  const { isHOD } = require('../utils/userScope');
+  const deptScope = getDepartmentScope(req);
+  const isUserHod = Boolean(req.user.isHOD || isHOD(req.user) || (req.user.doc && req.user.doc.department && (req.user.role === 'admin' || (req.user.doc.designation || '').toLowerCase().includes('hod'))));
+  const isClassTeacher = (req.user.doc?.classTeacherOf || []).length > 0;
+  const isUserAdmin = req.user.role === 'admin';
+
+  // Authorization: Must be an Admin, HOD, or Class Teacher
+  if (req.user.role === 'faculty' && !isUserHod && !isClassTeacher) {
+    return res.status(403).json({
+      message: 'Forbidden: Only Department HODs, Administrators, and Class Teachers can trigger email notifications.',
+    });
+  }
+
+  const { classBatch, course, studentId, viewType, force, customNote } = req.body || {};
+
+  // If faculty is a class teacher (and not HOD/admin), enforce their class batch
+  let targetClassBatch = classBatch;
+  if (req.user.role === 'faculty' && !isUserHod && !isUserAdmin) {
+    const teacherBatches = (req.user.doc?.classTeacherOf || []).map((b) => b.toString());
+    if (classBatch && !teacherBatches.includes(classBatch.toString())) {
+      return res.status(403).json({ message: 'Forbidden: You can only notify students in your designated class batch.' });
+    }
+    if (!classBatch) {
+      targetClassBatch = { $in: teacherBatches };
+    }
+  }
+
+  const userName = req.user.doc?.name || req.user.name || 'Authority';
+  const triggeredBy = isUserHod
+    ? `${userName} (HOD)`
+    : isUserAdmin
+    ? `${userName} (Admin)`
+    : `${userName} (Class Teacher)`;
+
+  const summary = await runDefaulterCheckAndNotify({
+    department: deptScope || req.body.department,
+    classBatch: targetClassBatch,
+    course,
+    studentId,
+    viewType: viewType || 'subject',
+    force: force !== undefined ? Boolean(force) : true, // manual trigger defaults to force=true
+    customNote,
+    triggeredBy,
+  });
+
+  res.json(summary);
 });
 
 // Notification history

@@ -15,9 +15,10 @@ function isHOD(user) {
   const doc = user.doc || user;
   if (isPrincipal(user)) return false; // Principal has global authority, not single department HOD
   const desig = (doc.designation || '').toLowerCase();
+  const isHodDesig = desig.includes('head') || desig.includes('hod');
   return (
-    user.role === 'admin' &&
-    (desig.includes('head') || desig.includes('hod') || Boolean(doc.department))
+    Boolean(doc.department) &&
+    (user.role === 'admin' || isHodDesig)
   );
 }
 

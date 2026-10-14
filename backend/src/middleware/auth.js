@@ -1,8 +1,9 @@
 const jwt = require('jsonwebtoken');
 const Faculty = require('../models/Faculty');
 const Student = require('../models/Student');
+const { isHOD, isPrincipal } = require('../utils/userScope');
 
-// Verifies JWT and attaches { id, role } to req.user
+// Verifies JWT and attaches { id, role, isHOD, isPrincipal, doc } to req.user
 const protect = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
@@ -20,7 +21,13 @@ const protect = async (req, res, next) => {
     }
     if (!user) return res.status(401).json({ message: 'User not found' });
 
-    req.user = { id: user._id.toString(), role: decoded.role, doc: user };
+    req.user = {
+      id: user._id.toString(),
+      role: decoded.role,
+      doc: user,
+      isHOD: decoded.role !== 'student' ? isHOD({ role: decoded.role, doc: user }) : false,
+      isPrincipal: decoded.role !== 'student' ? isPrincipal({ doc: user }) : false,
+    };
     next();
   } catch (err) {
     return res.status(401).json({ message: 'Not authorized, token invalid or expired' });
