@@ -12,6 +12,7 @@ import {
   Search,
   Users,
   Building2,
+  Smartphone,
 } from 'lucide-react';
 
 const classOrder = { FE: 1, SE: 2, TE: 3, BE: 4 };
@@ -179,6 +180,17 @@ export default function ManageStudents() {
     } finally {
       setImporting(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleResetDevice = async (studentId, studentName) => {
+    try {
+      await api.post(`/students/${studentId}/reset-device`);
+      toast.success(`Device binding reset for ${studentName}`);
+      window.dispatchEvent(new Event('refresh-notifications'));
+      load();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to reset device binding');
     }
   };
 
@@ -528,6 +540,36 @@ export default function ManageStudents() {
                               <Badge color={r.status === 'active' ? 'green' : 'gray'} dot>
                                 {r.status || 'active'}
                               </Badge>
+                            ),
+                          },
+                          {
+                            key: 'device',
+                            header: 'Device Binding',
+                            render: (r) => (
+                              <div className="flex items-center gap-1.5">
+                                {r.boundDeviceId ? (
+                                  <>
+                                    <span
+                                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400"
+                                      title={`Bound Device: ${r.boundDeviceName || r.boundDeviceId}`}
+                                    >
+                                      <Smartphone className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                                      <span>Linked</span>
+                                    </span>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => handleResetDevice(r._id, r.name)}
+                                      className="!text-[10px] !py-0.5 !px-1.5 text-slate-500 hover:text-rose-600 hover:border-rose-300 dark:text-slate-400"
+                                      title="Reset device binding to allow student to register a new device"
+                                    >
+                                      Reset
+                                    </Button>
+                                  </>
+                                ) : (
+                                  <span className="text-[11px] text-slate-400 italic">None</span>
+                                )}
+                              </div>
                             ),
                           },
                         ]}

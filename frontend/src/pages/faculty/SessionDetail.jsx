@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import api from '../../api/client';
 import { Card, Button, Table, Select, Badge, Input } from '../../components/ui';
@@ -14,8 +14,8 @@ import {
   Sparkles,
   Timer,
   Lock,
-  AlertTriangle,
   XCircle,
+  Smartphone,
 } from 'lucide-react';
 
 export default function SessionDetail() {
@@ -32,6 +32,13 @@ export default function SessionDetail() {
   const [updatingLocation, setUpdatingLocation] = useState(false);
   const [qrLoading, setQrLoading] = useState(false);
 
+  const isWindowExpiredRef = useRef(isWindowExpired);
+  useEffect(() => {
+    isWindowExpiredRef.current = isWindowExpired;
+  }, [isWindowExpired]);
+
+  const generateQRRef = useRef(null);
+
   const formatTime = (totalSeconds) => {
     if (!totalSeconds || totalSeconds <= 0) return '00:00';
     const m = Math.floor(totalSeconds / 60);
@@ -47,7 +54,7 @@ export default function SessionDetail() {
         setRadiusMeters(data.classBatch.classroom.radiusMeters);
       }
       return data;
-    } catch (err) {
+    } catch {
       toast.error('Failed to load session details');
     }
   }, [id]);
@@ -110,13 +117,27 @@ export default function SessionDetail() {
         setWindowSecondsLeft(0);
         loadAttendance();
         if (showToast) toast.error(err.response?.data?.message || 'QR attendance window has expired (10 minutes completed). Unscanned students marked absent.');
-      } else if (showToast) {
-        toast.error(err.response?.data?.message || 'Failed to generate QR');
+      } else {
+        if (showToast) {
+          toast.error(err.response?.data?.message || 'Failed to generate QR');
+        }
+        // If automatic rotation request failed (e.g. temporary network glitch), retry after 5s
+        if (isRotation && !isWindowExpiredRef.current) {
+          setTimeout(() => {
+            if (!isWindowExpiredRef.current) {
+              generateQRRef.current?.({ showToast: false, isRotation: true });
+            }
+          }, 5000);
+        }
       }
     } finally {
       if (showToast) setQrLoading(false);
     }
   }, [id, loadSession, loadAttendance]);
+
+  useEffect(() => {
+    generateQRRef.current = generateQR;
+  }, [generateQR]);
 
   useEffect(() => {
     (async () => {
@@ -134,7 +155,7 @@ export default function SessionDetail() {
 
   // 10-minute validity window countdown timer
   useEffect(() => {
-    if (!qr?.windowExpiresAt) return;
+    if (!qr?.windowExpiresAt) return undefined;
     let finalized = false;
     const tick = async () => {
       const diff = Math.max(0, Math.floor((new Date(qr.windowExpiresAt).getTime() - Date.now()) / 1000));
@@ -159,34 +180,41 @@ export default function SessionDetail() {
     return () => clearInterval(interval);
   }, [qr?.windowExpiresAt, id, loadAttendance]);
 
-  // Automatic token rotation every 15s (stops when 10m window expires)
+  // Automatic token rotation every rotationIntervalSeconds (stops when 10m window expires)
   useEffect(() => {
-    if (!qr?.rotationIntervalSeconds || isWindowExpired || windowSecondsLeft === 0) return undefined;
-    const interval = setInterval(() => {
+    if (!qr?.qrToken || !qr?.rotationIntervalSeconds || isWindowExpired) return undefined;
+    const intervalMs = qr.rotationIntervalSeconds * 1000;
+    const timer = setTimeout(() => {
       generateQR({ showToast: false, isRotation: true });
-    }, qr.rotationIntervalSeconds * 1000);
-    return () => clearInterval(interval);
-  }, [qr?.rotationIntervalSeconds, isWindowExpired, windowSecondsLeft, generateQR]);
+    }, intervalMs);
+    return () => clearTimeout(timer);
+  }, [qr?.qrToken, qr?.rotationIntervalSeconds, isWindowExpired, generateQR]);
 
   // Auto-refresh live roll call every 5 seconds while QR window is actively counting down
   useEffect(() => {
-    if (!qr || isWindowExpired || windowSecondsLeft === 0) return undefined;
+    if (!qr?.qrToken || isWindowExpired) return undefined;
     const interval = setInterval(() => {
       loadAttendance();
     }, 5000);
     return () => clearInterval(interval);
-  }, [qr, isWindowExpired, windowSecondsLeft, loadAttendance]);
+  }, [qr?.qrToken, isWindowExpired, loadAttendance]);
 
-  // 15-second rotating token countdown timer
+  // Rotating token countdown timer (ticks every second until the next rotation)
   useEffect(() => {
-    if (!qr?.expiresAt || isWindowExpired || windowSecondsLeft === 0) return;
-    const interval = setInterval(() => {
-      const diff = Math.max(0, Math.floor((new Date(qr.expiresAt).getTime() - Date.now()) / 1000));
+    if (!qr?.qrToken || isWindowExpired) return undefined;
+    const targetTime = qr.rotateExpiresAt
+      ? new Date(qr.rotateExpiresAt).getTime()
+      : Date.now() + (qr.rotationIntervalSeconds || 20) * 1000;
+
+    const tick = () => {
+      const diff = Math.max(0, Math.ceil((targetTime - Date.now()) / 1000));
       setSecondsLeft(diff);
-      if (diff === 0) clearInterval(interval);
-    }, 1000);
+    };
+
+    tick();
+    const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
-  }, [qr?.expiresAt, isWindowExpired, windowSecondsLeft]);
+  }, [qr?.qrToken, qr?.rotateExpiresAt, qr?.rotationIntervalSeconds, isWindowExpired]);
 
   const setClassroomLocation = () => {
     if (!navigator.geolocation) {
@@ -232,8 +260,22 @@ export default function SessionDetail() {
       toast.success('Attendance updated');
       window.dispatchEvent(new Event('refresh-notifications'));
       loadAttendance();
-    } catch (err) {
+    } catch {
       toast.error('Failed to update attendance');
+    }
+  };
+
+  const handleResetDevice = async (studentId, studentName) => {
+    try {
+      await api.post(`/students/${studentId}/reset-device`);
+      toast.success(`Device binding reset for ${studentName}`);
+      window.dispatchEvent(new Event('refresh-notifications'));
+      if (session?.classBatch?._id) {
+        loadStudents(session.classBatch._id);
+      }
+      loadAttendance();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to reset device binding');
     }
   };
 
@@ -327,7 +369,7 @@ export default function SessionDetail() {
                     Dynamic QR Code Not Generated
                   </p>
                   <p className="text-xs text-slate-500 dark:text-slate-400 max-w-xs">
-                    Generate the rotating session check-in code. Tokens rotate every 15s and check-in remains open for 10 minutes.
+                    Generate the rotating session check-in code. Tokens rotate automatically and check-in remains open for 10 minutes.
                   </p>
                   <Button
                     onClick={() => generateQR({ showToast: true, resetWindow: true })}
@@ -472,7 +514,7 @@ export default function SessionDetail() {
                           <span>{secondsLeft > 0 ? `Rotates in ${secondsLeft}s` : 'Refreshing token...'}</span>
                         </div>
                         <p className="text-[11px] text-slate-400">
-                          Tokens change automatically every {qr.rotationIntervalSeconds || 15}s.
+                          Tokens change automatically every {qr.rotationIntervalSeconds || 20}s.
                         </p>
                       </div>
 
@@ -616,6 +658,41 @@ export default function SessionDetail() {
                         <p className="mt-0.5 truncate text-[10px] text-slate-400 max-w-[120px]" title={record.dutyReason}>
                           {record.dutyReason}
                         </p>
+                      )}
+                    </div>
+                  );
+                },
+              },
+              {
+                key: 'device',
+                header: 'Device Binding',
+                render: (r) => {
+                  const record = attendanceMap[r._id];
+                  const isBound = Boolean(r.boundDeviceId || record?.student?.boundDeviceId);
+                  const deviceName = r.boundDeviceName || record?.student?.boundDeviceName || 'Registered Phone';
+                  return (
+                    <div className="flex items-center gap-2">
+                      {isBound ? (
+                        <div className="flex items-center gap-1.5">
+                          <span
+                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400"
+                            title={`Bound Device: ${deviceName}`}
+                          >
+                            <Smartphone className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                            <span>Linked</span>
+                          </span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleResetDevice(r._id, r.name)}
+                            className="!text-[10px] !py-0.5 !px-1.5 text-slate-500 hover:text-rose-600 hover:border-rose-300 dark:text-slate-400"
+                            title="Reset device binding if student got a new phone or lost device"
+                          >
+                            Reset
+                          </Button>
+                        </div>
+                      ) : (
+                        <span className="text-[11px] text-slate-400 italic">No device bound</span>
                       )}
                     </div>
                   );

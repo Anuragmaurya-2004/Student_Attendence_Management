@@ -300,11 +300,13 @@ const generateSessionQR = async (req, res) => {
   // QR payload: sessionId + token, verified server-side on scan
   const payload = JSON.stringify({ sessionId: session._id.toString(), token: session.qrToken });
   const qrDataUrl = await QRCode.toDataURL(payload);
+  const rotateExpiresAt = new Date(now + QR_ROTATION_INTERVAL_SECONDS * 1000);
 
   res.json({
     qrDataUrl,
     qrToken: session.qrToken,
     expiresAt: session.qrExpiresAt,
+    rotateExpiresAt,
     rotationIntervalSeconds: QR_ROTATION_INTERVAL_SECONDS,
     windowExpiresAt: session.qrWindowExpiresAt,
     windowStartedAt: session.qrWindowStartedAt,

@@ -1,3 +1,4 @@
+
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
@@ -30,6 +31,10 @@ const studentSchema = new mongoose.Schema(
         semester: Number,
       },
     ],
+    // Device binding to prevent proxy attendance from shared phones
+    boundDeviceId: { type: String, default: null },
+    boundDeviceName: { type: String, default: null },
+    deviceBoundAt: { type: Date, default: null },
     role: { type: String, default: 'student', immutable: true },
   },
   { timestamps: true }

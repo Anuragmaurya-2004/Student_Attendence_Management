@@ -8,6 +8,8 @@ const attendanceSchema = new mongoose.Schema(
     method: { type: String, enum: ['qr', 'manual', 'on_duty'], default: 'qr' },
     dutyReason: { type: String }, // e.g. "Industrial Visit", "Hackathon", "Sports Meet"
     onDutyRef: { type: mongoose.Schema.Types.ObjectId, ref: 'OnDuty' },
+    deviceId: { type: String, index: true }, // unique device fingerprint used during QR scan
+    deviceInfo: { type: String }, // human-readable browser / device summary
     markedAt: { type: Date, default: Date.now },
     markedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Faculty' }, // set when manually marked
   },

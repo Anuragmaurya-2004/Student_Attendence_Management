@@ -18,6 +18,7 @@ import {
   SwitchCamera,
   KeyRound,
 } from 'lucide-react';
+import { getOrCreateDeviceId, getDeviceSummary } from '../../utils/device';
 
 const SCANNER_ELEMENT_ID = 'qr-reader-container';
 
@@ -142,11 +143,15 @@ export default function ScanQR() {
 
     try {
       const location = await fetchStudentCoordinates();
+      const deviceId = getOrCreateDeviceId();
+      const deviceInfo = getDeviceSummary();
 
       const { data } = await api.post('/attendance/check-in', {
         sessionId,
         token,
         location,
+        deviceId,
+        deviceInfo,
       });
 
       // Trigger mobile haptic feedback if available
@@ -620,6 +625,7 @@ export default function ScanQR() {
             <ul className="space-y-1 list-disc list-inside">
               <li>Scan the active rotating code directly from your instructor’s display</li>
               <li>Tokens refresh periodically; please scan the currently displayed code</li>
+              <li><strong>One Device Policy:</strong> You must check in using your personal device. Marking proxy attendance for other accounts on the same device is blocked.</li>
               <li>If your camera is unavailable, switch to the <strong>Upload Image</strong> tab</li>
             </ul>
           </div>

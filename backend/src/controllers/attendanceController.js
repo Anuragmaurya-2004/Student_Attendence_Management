@@ -8,7 +8,7 @@ const { createNotification } = require('../utils/notificationService');
 // @route POST /api/attendance/check-in
 // body: { sessionId, token, location: { latitude, longitude, accuracy } }
 const checkIn = async (req, res) => {
-  const { sessionId, token, location } = req.body;
+  const { sessionId, token, location, deviceId, deviceInfo } = req.body;
   if (req.user.role !== 'student') {
     return res.status(403).json({ message: 'Only students can self check-in via QR' });
   }
@@ -46,6 +46,39 @@ const checkIn = async (req, res) => {
     return res.status(403).json({ message: 'You are not enrolled in this session’s class batch.' });
   }
 
+  // Device verification to prevent proxy attendance
+  if (!deviceId) {
+    return res.status(400).json({
+      message: 'Device signature missing. Please ensure your browser allows local storage/cookies to verify your device.',
+    });
+  }
+
+  // 1. Session-level proxy prevention: has this device already marked attendance for another student in THIS session?
+  const proxyRecord = await Attendance.findOne({
+    session: sessionId,
+    deviceId,
+    student: { $ne: req.user.id },
+    status: { $in: ['present', 'late', 'on_duty'] },
+  }).populate('student', 'name rollNo');
+
+  if (proxyRecord) {
+    return res.status(403).json({
+      message: `Proxy check-in blocked: This device has already been used to mark attendance for ${proxyRecord.student?.name || 'another student'} (${proxyRecord.student?.rollNo || ''}) in this session. Multiple student check-ins from the same device are prohibited.`,
+    });
+  }
+
+  // 2. Student device registration / binding check
+  if (!student.boundDeviceId) {
+    student.boundDeviceId = deviceId;
+    student.boundDeviceName = deviceInfo || 'Registered Device';
+    student.deviceBoundAt = new Date();
+    await student.save();
+  } else if (student.boundDeviceId !== deviceId) {
+    return res.status(403).json({
+      message: `Device mismatch: Your student account is bound to another device (${student.boundDeviceName || 'Original Device'}). If you have changed your phone or lost your device, ask your instructor or administrator to reset your device binding.`,
+    });
+  }
+
   // Geofencing applies only to student QR self check-in.
   await session.populate('classBatch');
   const locationCheck = verifyStudentLocation(session.classBatch?.classroom, location);
@@ -59,6 +92,8 @@ const checkIn = async (req, res) => {
       }
       attendance.status = 'present';
       attendance.method = 'qr';
+      attendance.deviceId = deviceId;
+      attendance.deviceInfo = deviceInfo;
       attendance.markedAt = new Date();
       await attendance.save();
     } else {
@@ -67,6 +102,8 @@ const checkIn = async (req, res) => {
         student: req.user.id,
         status: 'present',
         method: 'qr',
+        deviceId,
+        deviceInfo,
       });
     }
 
@@ -192,7 +229,10 @@ const { getDepartmentScope } = require('../utils/userScope');
 // @desc Get attendance records for a session
 // @route GET /api/attendance/session/:sessionId
 const getBySession = async (req, res) => {
-  const records = await Attendance.find({ session: req.params.sessionId }).populate('student', 'name rollNo email');
+  const records = await Attendance.find({ session: req.params.sessionId }).populate(
+    'student',
+    'name rollNo email boundDeviceId boundDeviceName deviceBoundAt'
+  );
   res.json(records);
 };
 

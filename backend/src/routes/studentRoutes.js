@@ -355,4 +355,43 @@ router.delete('/:id', authorize('admin'), async (req, res) => {
   res.json({ message: 'Deleted' });
 });
 
+// Reset student device binding (admin or faculty)
+router.post('/:id/reset-device', authorize('admin', 'faculty'), async (req, res) => {
+  try {
+    const student = await Student.findById(req.params.id);
+    if (!student) return res.status(404).json({ message: 'Student not found' });
+
+    const deptScope = getDepartmentScope(req);
+    if (deptScope && student.department?.toString() !== deptScope) {
+      return res.status(403).json({ message: 'Forbidden: Student is outside your department scope.' });
+    }
+
+    student.boundDeviceId = null;
+    student.boundDeviceName = null;
+    student.deviceBoundAt = null;
+    await student.save();
+
+    try {
+      await createNotification({
+        title: 'Device Binding Reset',
+        message: 'Your registered attendance device has been reset. You may now link a new phone on your next QR check-in.',
+        type: 'info',
+        link: '/student',
+        recipient: student._id,
+        recipientModel: 'Student',
+        recipientRole: 'student',
+      });
+    } catch (notifErr) {
+      console.error('Notification error on device reset:', notifErr);
+    }
+
+    res.json({
+      message: `Device binding cleared for ${student.name} (${student.rollNo}). They can now link a new phone.`,
+      student,
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to reset student device binding.' });
+  }
+});
+
 module.exports = router;
