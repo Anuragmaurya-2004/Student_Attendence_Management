@@ -348,7 +348,18 @@ const updateSessionLocation = async (req, res) => {
     return res.status(403).json({ message: 'Not your session' });
   }
 
-  const { latitude, longitude, radiusMeters } = req.body;
+  const { latitude, longitude, radiusMeters, enabled, clear } = req.body;
+
+  // Allow faculty to disable or clear the classroom geofence for testing or classes without GPS
+  if (enabled === false || clear === true || (latitude === null && longitude === null) || latitude === '' || latitude === undefined) {
+    const batch = await ClassBatch.findByIdAndUpdate(
+      session.classBatch,
+      { $unset: { classroom: 1 } },
+      { new: true }
+    );
+    return res.json({ message: 'Classroom geofence removed. Students can now check in without GPS restriction.', classroom: null });
+  }
+
   const validationError = validateLocation({ latitude, longitude, radiusMeters });
   if (validationError) return res.status(400).json({ message: validationError });
 

@@ -5,13 +5,20 @@ const getDefaultApiUrl = () => {
   if (configured) return configured;
 
   const hostname = window.location.hostname;
-  if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') {
-    return 'http://localhost:5000/api';
-  }
+  const protocol = window.location.protocol;
 
   // Fallback to deployed Railway API if VITE_API_URL was not set during build
   if (hostname.endsWith('.vercel.app')) {
     return 'https://studentattendencemanagement-production.up.railway.app/api';
+  }
+
+  // Prevent browser Mixed Content blocking when frontend runs on HTTPS
+  if (protocol === 'https:') {
+    return '/api';
+  }
+
+  if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') {
+    return 'http://localhost:5000/api';
   }
 
   return `http://${hostname}:5000/api`;

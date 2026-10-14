@@ -254,6 +254,20 @@ export default function SessionDetail() {
     );
   };
 
+  const removeClassroomLocation = async () => {
+    setUpdatingLocation(true);
+    try {
+      await api.put(`/sessions/${id}/location`, { enabled: false });
+      setLocationStatus('Classroom geofence disabled. Students can check in without GPS restriction.');
+      loadSession();
+      toast.success('Geofence disabled');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to disable geofence');
+    } finally {
+      setUpdatingLocation(false);
+    }
+  };
+
   const markStatus = async (studentId, status) => {
     try {
       await api.post('/attendance/manual', { sessionId: id, studentId, status });
@@ -589,8 +603,18 @@ export default function SessionDetail() {
               )}
 
               {session.classBatch?.classroom?.latitude != null && (
-                <div className="mt-3 rounded-xl border border-emerald-200/80 bg-emerald-50/60 p-2.5 text-xs text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300">
-                  Active coordinate: {session.classBatch.classroom.latitude.toFixed(4)}, {session.classBatch.classroom.longitude.toFixed(4)} ({session.classBatch.classroom.radiusMeters}m perimeter)
+                <div className="mt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-xl border border-emerald-200/80 bg-emerald-50/60 p-2.5 text-xs text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300">
+                  <span>
+                    Active coordinate: {session.classBatch.classroom.latitude.toFixed(4)}, {session.classBatch.classroom.longitude.toFixed(4)} ({session.classBatch.classroom.radiusMeters}m perimeter)
+                  </span>
+                  <button
+                    type="button"
+                    disabled={updatingLocation}
+                    onClick={removeClassroomLocation}
+                    className="self-start sm:self-auto rounded-lg px-2 py-1 font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-100/60 dark:text-rose-400 dark:hover:bg-rose-950/60 transition-colors text-[11px]"
+                  >
+                    Disable Geofence
+                  </button>
                 </div>
               )}
             </div>

@@ -17,40 +17,101 @@ import {
   RefreshCw,
   SwitchCamera,
   KeyRound,
+  Navigation,
 } from 'lucide-react';
 import { getOrCreateDeviceId, getDeviceSummary } from '../../utils/device';
 
 const SCANNER_ELEMENT_ID = 'qr-reader-container';
 
 /**
- * Resilient geolocation fetcher:
- * 1. Tries high accuracy with a 5s timeout.
- * 2. Falls back to standard accuracy with a 7s timeout.
- * 3. Returns null if unavailable or denied so backend can allow check-in
- *    if classroom does not mandate a geofence.
+ * Checks whether the current window origin is a secure context.
+ * Modern browsers strictly require HTTPS or localhost to access navigator.geolocation.
  */
+const checkIsSecureContext = () => {
+  if (typeof window === 'undefined') return true;
+  if (window.isSecureContext !== undefined) return window.isSecureContext;
+  const hostname = window.location.hostname;
+  return (
+    window.location.protocol === 'https:' ||
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname === '::1'
+  );
+};
+
 const cachedCoords = { data: null, timestamp: 0 };
 
-const fetchStudentCoordinates = async () => {
+/**
+ * Resilient geolocation fetcher with detailed error classification:
+ * Classifies issues into:
+ *  - INSECURE_CONTEXT (accessed via http://192.168.x.x where browser refuses to prompt)
+ *  - NOT_SUPPORTED (device lacks geolocation API)
+ *  - PERMISSION_DENIED (blocked in browser site settings)
+ *  - POSITION_UNAVAILABLE (GPS/Location turned OFF on phone)
+ *  - TIMEOUT (GPS fix timed out)
+ */
+const fetchCoordinatesWithDiagnostics = async (forceFresh = false) => {
+  // 1. Insecure Context check (e.g. mobile accessing http://192.168.x.x:5173)
+  if (!checkIsSecureContext()) {
+    const isLAN = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+    return {
+      ok: false,
+      type: 'INSECURE_CONTEXT',
+      title: 'Insecure Connection (HTTP)',
+      message: isLAN
+        ? `Browsers block GPS location access over unencrypted HTTP (http://${window.location.hostname}:5173).`
+        : 'Geolocation requires a secure context (HTTPS or localhost).',
+      resolution: isLAN
+        ? 'Run the app with HTTPS using "npm run dev:https" and open https://' + window.location.hostname + ':5173, OR test directly on http://localhost:5173 on your PC, OR ask your instructor to disable classroom geofence for testing.'
+        : 'Please open this website using https:// or http://localhost.',
+    };
+  }
+
+  // 2. Browser API check
   if (typeof navigator === 'undefined' || !navigator.geolocation) {
-    return null;
+    return {
+      ok: false,
+      type: 'NOT_SUPPORTED',
+      title: 'Geolocation Unsupported',
+      message: 'Your browser or device does not support geolocation lookup.',
+      resolution: 'Please open this page in Google Chrome, Microsoft Edge, or Apple Safari.',
+    };
   }
 
-  // Return fresh cached coordinates (within last 35 seconds) if available
-  if (cachedCoords.data && Date.now() - cachedCoords.timestamp < 35000) {
-    return cachedCoords.data;
+  // 3. Return fresh cached coordinates if available
+  if (!forceFresh && cachedCoords.data && Date.now() - cachedCoords.timestamp < 45000) {
+    return { ok: true, coords: cachedCoords.data };
   }
 
-  const getPosition = (options) =>
+  // 4. Permissions API check (if supported)
+  if (navigator.permissions && navigator.permissions.query) {
+    try {
+      const permission = await navigator.permissions.query({ name: 'geolocation' });
+      if (permission.state === 'denied') {
+        return {
+          ok: false,
+          type: 'PERMISSION_DENIED',
+          title: 'Location Permission Blocked in Browser',
+          message: 'Location access is blocked for this site in your browser settings.',
+          resolution: 'Tap the lock/tune icon in your browser address bar → Site Settings → set Location to "Allow", then refresh or tap Retry.',
+        };
+      }
+    } catch {
+      // Permissions API not universally supported; proceed to getCurrentPosition
+    }
+  }
+
+  const getPositionPromise = (options) =>
     new Promise((resolve, reject) => {
       navigator.geolocation.getCurrentPosition(resolve, reject, options);
     });
 
+  // 5. High accuracy attempt (10s timeout to allow GPS satellite/Wi-Fi lock)
   try {
-    const highAcc = await getPosition({
+    const highAcc = await getPositionPromise({
       enableHighAccuracy: true,
-      timeout: 4000,
-      maximumAge: 30000,
+      timeout: 10000,
+      maximumAge: 15000,
     });
     const result = {
       latitude: highAcc.coords.latitude,
@@ -59,13 +120,24 @@ const fetchStudentCoordinates = async () => {
     };
     cachedCoords.data = result;
     cachedCoords.timestamp = Date.now();
-    return result;
+    return { ok: true, coords: result };
   } catch (highErr) {
-    // If high accuracy timed out or failed, try standard accuracy
+    // If explicitly denied by user
+    if (highErr.code === 1) {
+      return {
+        ok: false,
+        type: 'PERMISSION_DENIED',
+        title: 'Location Permission Denied',
+        message: 'Location access was blocked or denied in your browser.',
+        resolution: 'Tap the lock/tune icon in your browser address bar, set Location to "Allow", and tap Retry.',
+      };
+    }
+
+    // Fallback: try standard / cellular / Wi-Fi accuracy (8s timeout)
     try {
-      const lowAcc = await getPosition({
+      const lowAcc = await getPositionPromise({
         enableHighAccuracy: false,
-        timeout: 4000,
+        timeout: 8000,
         maximumAge: 60000,
       });
       const result = {
@@ -75,9 +147,33 @@ const fetchStudentCoordinates = async () => {
       };
       cachedCoords.data = result;
       cachedCoords.timestamp = Date.now();
-      return result;
-    } catch {
-      return null;
+      return { ok: true, coords: result };
+    } catch (lowErr) {
+      if (lowErr.code === 1) {
+        return {
+          ok: false,
+          type: 'PERMISSION_DENIED',
+          title: 'Location Permission Denied',
+          message: 'Location access was blocked or denied in your browser.',
+          resolution: 'Tap the lock/tune icon in your browser address bar, set Location to "Allow", and tap Retry.',
+        };
+      }
+      if (lowErr.code === 2) {
+        return {
+          ok: false,
+          type: 'POSITION_UNAVAILABLE',
+          title: 'Device GPS / Location Turned Off',
+          message: 'Your device location could not be determined.',
+          resolution: 'Ensure device Location/GPS is turned ON in your phone quick settings/system settings and try again.',
+        };
+      }
+      return {
+        ok: false,
+        type: 'TIMEOUT',
+        title: 'Location Request Timed Out',
+        message: 'Could not obtain a GPS fix in time.',
+        resolution: 'Move closer to a window or outdoors to get GPS signal, then tap "Retry Location".',
+      };
     }
   }
 };
@@ -87,6 +183,13 @@ export default function ScanQR() {
   const [scanning, setScanning] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [result, setResult] = useState(null);
+
+  // Location verification state
+  const [locationState, setLocationState] = useState({
+    status: 'checking', // 'checking' | 'ready' | 'error'
+    coords: null,
+    error: null,
+  });
 
   // Camera management
   const [cameras, setCameras] = useState([]);
@@ -100,9 +203,35 @@ export default function ScanQR() {
   const scanHandledRef = useRef(false);
   const fileInputRef = useRef(null);
 
+  const requestLocation = useCallback(async (isUserAction = false) => {
+    setLocationState((prev) => ({ ...prev, status: 'checking' }));
+    const res = await fetchCoordinatesWithDiagnostics(isUserAction);
+    if (res.ok) {
+      setLocationState({
+        status: 'ready',
+        coords: res.coords,
+        error: null,
+      });
+      if (isUserAction) {
+        toast.success(`GPS Location verified (±${Math.round(res.coords.accuracy)}m)`);
+      }
+      return res.coords;
+    } else {
+      setLocationState({
+        status: 'error',
+        coords: null,
+        error: res,
+      });
+      if (isUserAction) {
+        toast.error(`${res.title}: ${res.message}`);
+      }
+      return null;
+    }
+  }, []);
+
   // Warm up GPS location and load available camera devices on mount
   useEffect(() => {
-    fetchStudentCoordinates().catch(() => {});
+    requestLocation(false);
 
     Html5Qrcode.getCameras()
       .then((devices) => {
@@ -120,7 +249,7 @@ export default function ScanQR() {
     return () => {
       stopScanning();
     };
-  }, []);
+  }, [requestLocation]);
 
   const stopScanning = useCallback(async () => {
     if (scannerRef.current) {
@@ -142,7 +271,12 @@ export default function ScanQR() {
     setResult(null);
 
     try {
-      const location = await fetchStudentCoordinates();
+      // Use ready coordinates, or try fetching freshly
+      let location = locationState.coords;
+      if (!location) {
+        location = await requestLocation(false);
+      }
+
       const deviceId = getOrCreateDeviceId();
       const deviceInfo = getDeviceSummary();
 
@@ -168,6 +302,12 @@ export default function ScanQR() {
       window.dispatchEvent(new Event('refresh-notifications'));
     } catch (err) {
       let message = err.response?.data?.message || 'Check-in failed. Please try again.';
+      
+      // If backend rejected because GPS was required and we have local diagnostic info, append it
+      if (!locationState.coords && locationState.error) {
+        message = `${message} — ${locationState.error.title}: ${locationState.error.message}`;
+      }
+
       setResult({ success: false, message });
       toast.error(message);
       scanHandledRef.current = false;
@@ -360,6 +500,71 @@ export default function ScanQR() {
       </div>
 
       <Card title="Attendance Check-In" subtitle="Camera scanner and coordinate verification">
+        {/* Real-time Location Verification Banner */}
+        <div className="mb-5 w-full">
+          {locationState.status === 'ready' && (
+            <div className="flex items-center justify-between rounded-2xl border border-emerald-200/90 bg-emerald-50/70 p-3 text-xs text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300">
+              <div className="flex items-center gap-2">
+                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-900/60 dark:text-emerald-400 shrink-0">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                </div>
+                <div>
+                  <span className="font-bold">GPS Location Ready:</span>{' '}
+                  <span className="font-mono text-[11px]">
+                    {locationState.coords.latitude.toFixed(4)}, {locationState.coords.longitude.toFixed(4)}
+                  </span>{' '}
+                  <span className="text-[11px] text-emerald-600 dark:text-emerald-400">
+                    (±{Math.round(locationState.coords.accuracy)}m)
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => requestLocation(true)}
+                className="flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-100/70 dark:text-emerald-300 dark:hover:bg-emerald-900/50 transition-colors"
+                title="Refresh GPS Coordinates"
+              >
+                <RefreshCw className="h-3 w-3" /> Refresh
+              </button>
+            </div>
+          )}
+
+          {locationState.status === 'checking' && (
+            <div className="flex items-center gap-2 rounded-2xl border border-blue-200 bg-blue-50/70 p-3 text-xs text-blue-800 dark:border-blue-800 dark:bg-blue-950/30 dark:text-blue-300">
+              <RefreshCw className="h-4 w-4 animate-spin text-blue-600 shrink-0" />
+              <span>Verifying GPS location coordinates... Please click "Allow" if your browser prompts.</span>
+            </div>
+          )}
+
+          {locationState.status === 'error' && (
+            <div className="rounded-2xl border border-amber-300 bg-gradient-to-br from-amber-50 to-orange-50/40 p-3.5 text-xs text-amber-900 dark:border-amber-900/60 dark:from-amber-950/50 dark:to-orange-950/30 dark:text-amber-200">
+              <div className="flex items-start gap-2.5">
+                <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                <div className="flex-1 space-y-1">
+                  <div className="font-bold text-amber-900 dark:text-amber-100 flex items-center justify-between">
+                    <span>{locationState.error.title}</span>
+                    <button
+                      type="button"
+                      onClick={() => requestLocation(true)}
+                      className="inline-flex items-center gap-1 rounded-lg bg-amber-600 text-white px-2.5 py-1 text-[11px] font-semibold hover:bg-amber-700 transition-colors shadow-xs"
+                    >
+                      <Navigation className="h-3 w-3" /> Retry Location
+                    </button>
+                  </div>
+                  <p className="text-[11px] leading-relaxed text-amber-800/90 dark:text-amber-200/90">
+                    {locationState.error.message}
+                  </p>
+                  {locationState.error.resolution && (
+                    <div className="mt-1.5 rounded-xl border border-amber-200/70 bg-white/70 p-2 text-[11px] text-amber-950 dark:border-amber-800/50 dark:bg-black/20 dark:text-amber-200">
+                      <span className="font-semibold">How to fix:</span> {locationState.error.resolution}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Mode Selector Tabs */}
         <div className="flex rounded-xl bg-slate-100 p-1 dark:bg-slate-800/80 mb-5">
           <button
