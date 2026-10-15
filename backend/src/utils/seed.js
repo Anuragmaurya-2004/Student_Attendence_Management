@@ -14,11 +14,58 @@ const OnDuty = require('../models/OnDuty');
 const DefaulterLog = require('../models/DefaulterLog');
 const { applyOnDutyToSessions } = require('../services/onDutyService');
 
+const SEED_RUN_ID = 'initial-attendance-demo-v1';
+
+async function claimInitialSeedRun() {
+  const runCollection = mongoose.connection.db.collection('_attendance_seed_runs');
+
+  // The unique _id makes this a one-time claim even if two Vercel builds start
+  // at once. A failed/in-progress claim is intentionally fail-closed so a
+  // later deployment cannot clear or duplicate partially seeded data.
+  try {
+    await runCollection.insertOne({
+      _id: SEED_RUN_ID,
+      status: 'running',
+      startedAt: new Date(),
+    });
+  } catch (error) {
+    if (error.code === 11000) {
+      console.log('Initial seed already claimed; skipping this deployment.');
+      return false;
+    }
+    throw error;
+  }
+
+  const collections = await mongoose.connection.db.listCollections({ type: 'collection' }).toArray();
+  const recordCounts = await Promise.all(
+    collections
+      .filter(({ name }) => name !== '_attendance_seed_runs' && !name.startsWith('system.'))
+      .map(({ name }) => mongoose.connection.db.collection(name).countDocuments({}, { limit: 1 }))
+  );
+
+  if (recordCounts.some((count) => count > 0)) {
+    await runCollection.updateOne(
+      { _id: SEED_RUN_ID },
+      { $set: { status: 'skipped-existing-data', checkedAt: new Date() } }
+    );
+    console.log('Database already contains attendance data; skipping seed to preserve it.');
+    return false;
+  }
+
+  return true;
+}
+
 async function seed() {
   const mongoUri = process.env.MONGO_URI || 'mongodb://localhost:27017/attendance_system';
   console.log(`Connecting to MongoDB at: ${mongoUri}`);
   await mongoose.connect(mongoUri);
   console.log('Connected to MongoDB.\n');
+
+  if (!(await claimInitialSeedRun())) {
+    await mongoose.disconnect();
+    console.log('Disconnected from MongoDB.');
+    return;
+  }
 
   console.log('--- Cleaning up existing database records ---');
   await Promise.all([
@@ -628,6 +675,11 @@ async function seed() {
   console.log('| Student 7 (Defaulter)  | student7@college.edu      | Student@123  |');
   console.log('| Other Students (1..20) | studentX@college.edu      | Student@123  |');
   console.log('----------------------------------------------------------------\n');
+
+  await mongoose.connection.db.collection('_attendance_seed_runs').updateOne(
+    { _id: SEED_RUN_ID },
+    { $set: { status: 'completed', completedAt: new Date() } }
+  );
 
   await mongoose.disconnect();
   console.log('Disconnected from MongoDB.');
