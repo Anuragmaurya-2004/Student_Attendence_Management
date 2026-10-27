@@ -56,7 +56,7 @@ const markUnscannedStudentsAbsent = async (sessionId, markedById = null) => {
         updateOne: {
           filter: { session: session._id, student: student._id },
           update: {
-            $set: {
+            $setOnInsert: {
               status: 'absent',
               method: 'manual',
               markedAt: new Date(),
@@ -70,7 +70,7 @@ const markUnscannedStudentsAbsent = async (sessionId, markedById = null) => {
     } else if (existing.status === 'unmarked') {
       ops.push({
         updateOne: {
-          filter: { _id: existing._id },
+          filter: { _id: existing._id, status: 'unmarked' },
           update: {
             $set: {
               status: 'absent',
@@ -263,22 +263,27 @@ const generateSessionQR = async (req, res) => {
   session.status = 'held';
   await session.save();
 
-  // Schedule server-side timer to auto-mark unscanned students as absent when window expires
-  if (activeSessionTimers.has(sessionIdStr)) {
-    clearTimeout(activeSessionTimers.get(sessionIdStr));
-    activeSessionTimers.delete(sessionIdStr);
-  }
-  const remainingMs = Math.max(0, session.qrWindowExpiresAt.getTime() - Date.now());
-  const timer = setTimeout(async () => {
-    try {
-      await markUnscannedStudentsAbsent(session._id);
-    } catch (err) {
-      console.error('Auto absent timer error:', err);
-    } finally {
+  // Persistent servers can use timers; Vercel reconciles saved expiry dates on reads.
+  if (!process.env.VERCEL) {
+    // Schedule server-side timer to auto-mark unscanned students as absent when window expires
+    if (activeSessionTimers.has(sessionIdStr)) {
+      clearTimeout(activeSessionTimers.get(sessionIdStr));
       activeSessionTimers.delete(sessionIdStr);
     }
-  }, remainingMs);
-  activeSessionTimers.set(sessionIdStr, timer);
+    const remainingMs = Math.max(0, session.qrWindowExpiresAt.getTime() - Date.now());
+    const timer = setTimeout(async () => {
+      try {
+        await markUnscannedStudentsAbsent(session._id);
+      } catch (err) {
+        console.error('Auto absent timer error:', err);
+      } finally {
+        activeSessionTimers.delete(sessionIdStr);
+      }
+    }, remainingMs);
+    activeSessionTimers.set(sessionIdStr, timer);
+
+    timer.unref?.();
+  }
 
   // Send notification only when a new QR window starts, rather than spamming on every 15s rotation
   if (isNewWindow) {
@@ -411,7 +416,19 @@ const getSession = async (req, res) => {
   res.json(session);
 };
 
+// Persisted deadlines survive cold starts and do not depend on an open browser.
+const finalizeExpiredSessions = async (batchIds) => {
+  const expired = await Session.find({
+    ...(batchIds ? { classBatch: { $in: batchIds } } : {}),
+    qrWindowExpiresAt: { $lte: new Date() },
+    absentMarkedAt: null,
+    status: { $ne: 'cancelled' },
+  }).select('_id').limit(100);
+  for (const session of expired) await markUnscannedStudentsAbsent(session._id);
+};
+
 module.exports = {
+  finalizeExpiredSessions,
   createSession,
   generateSessionQR,
   finalizeSessionAbsent,

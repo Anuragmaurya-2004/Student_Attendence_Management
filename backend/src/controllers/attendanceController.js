@@ -323,6 +323,8 @@ const getClassBatchMatrix = async (req, res) => {
 
   const students = await Student.find({ classBatch: batch._id, status: 'active' }).sort('rollNo');
 
+  const { createAttendanceLookup } = require('../services/defaulterService');
+  const getStat = await createAttendanceLookup([batch._id], courses);
   const matrix = [];
   for (const student of students) {
     const courseStats = [];
@@ -331,7 +333,7 @@ const getClassBatchMatrix = async (req, res) => {
     let studentOnDuty = 0;
 
     for (const course of courses) {
-      const stats = await computeStudentCourseAttendance(student._id, course._id, batch._id);
+      const stats = getStat(student._id, course, batch._id.toString());
       courseStats.push({
         courseId: course._id,
         courseName: course.name,

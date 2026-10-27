@@ -1,5 +1,6 @@
 require('dotenv').config({ path: require('path').resolve(__dirname, '../../.env') });
 const mongoose = require('mongoose');
+const connectDB = require('../config/db');
 
 const Department = require('../models/Department');
 const AcademicYear = require('../models/AcademicYear');
@@ -56,9 +57,8 @@ async function claimInitialSeedRun() {
 }
 
 async function seed() {
-  const mongoUri = process.env.MONGO_URI || 'mongodb://localhost:27017/attendance_system';
-  console.log(`Connecting to MongoDB at: ${mongoUri}`);
-  await mongoose.connect(mongoUri);
+  console.log('Connecting to the configured MongoDB database...');
+  await connectDB();
   console.log('Connected to MongoDB.\n');
 
   if (!(await claimInitialSeedRun())) {

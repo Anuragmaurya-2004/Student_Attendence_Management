@@ -5,7 +5,7 @@ const { generateToken } = require('../utils/generateToken');
 const { sendPasswordChangedEmail } = require('../services/mailService');
 
 const loginSchema = Joi.object({
-  email: Joi.string().trim().email().required().messages({
+  email: Joi.string().trim().lowercase().email().required().messages({
     'string.email': 'Please enter a valid email address.',
     'any.required': 'Email is required.',
   }),
@@ -45,13 +45,13 @@ const validateRequest = (schema, req, res, next) => {
 const facultyLogin = async (req, res) => {
   console.log('[Backend Auth] facultyLogin start', { email: req.body?.email, role: 'faculty' });
 
-  const { error } = loginSchema.validate(req.body, { abortEarly: false });
+  const { error, value } = loginSchema.validate(req.body, { abortEarly: false });
   if (error) {
     console.log('[Backend Auth] facultyLogin validation failed', error.details);
     return res.status(400).json({ message: error.details.map((d) => d.message).join(', ') });
   }
 
-  const { email, password } = req.body;
+  const { email, password } = value;
   const { isHOD, isPrincipal } = require('../utils/userScope');
   const faculty = await Faculty.findOne({ email })
     .select('+password')
@@ -96,13 +96,13 @@ const facultyLogin = async (req, res) => {
 const studentLogin = async (req, res) => {
   console.log('[Backend Auth] studentLogin start', { email: req.body?.email, role: 'student' });
 
-  const { error } = loginSchema.validate(req.body, { abortEarly: false });
+  const { error, value } = loginSchema.validate(req.body, { abortEarly: false });
   if (error) {
     console.log('[Backend Auth] studentLogin validation failed', error.details);
     return res.status(400).json({ message: error.details.map((d) => d.message).join(', ') });
   }
 
-  const { email, password } = req.body;
+  const { email, password } = value;
   const student = await Student.findOne({ email }).select('+password');
   console.log('[Backend Auth] student lookup result', {
     found: !!student,

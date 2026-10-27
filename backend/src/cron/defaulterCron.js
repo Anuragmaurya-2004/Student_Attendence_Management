@@ -106,33 +106,37 @@ async function runDefaulterCheckAndNotify(options = {}) {
         const subject = d.isOverall
           ? `Overall Attendance Shortage Alert: ${student.name} (${d.attendancePercent}%)`
           : `Attendance Alert: ${d.courseName || 'Subject'} (${d.type || 'Theory'}) - ${d.attendancePercent}%`;
-        await sendMail({
+        const delivery = await sendMail({
           to: student.email,
           subject,
           html: studentHtml,
         });
-        emailsSent++;
-        studentEmailSuccess = true;
+        if (!delivery?.skipped) {
+          emailsSent++;
+          studentEmailSuccess = true;
+        }
       }
 
       if (student.parentEmail && parentHtml) {
         const parentSubject = d.isOverall
           ? `Attendance Alert for your child (${student.name}): Cumulative ${d.attendancePercent}%`
           : `Attendance alert for your child (${student.name}): ${d.courseName || 'Subject'} (${d.type || 'Theory'})`;
-        await sendMail({
+        const delivery = await sendMail({
           to: student.parentEmail,
           subject: parentSubject,
           html: parentHtml,
         });
-        emailsSent++;
-        parentEmailSuccess = true;
+        if (!delivery?.skipped) {
+          emailsSent++;
+          parentEmailSuccess = true;
+        }
       }
 
       if (studentEmailSuccess || parentEmailSuccess) {
         notifiedCount++;
       }
 
-      if (log) {
+      if (log && (studentEmailSuccess || parentEmailSuccess)) {
         log.notifiedAt = new Date();
         log.channel = 'email';
         await log.save();

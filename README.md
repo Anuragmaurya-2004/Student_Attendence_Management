@@ -134,8 +134,8 @@ This outputs static files to `frontend/dist/`, which can be served by any static
 | **HOD (Admin)** | AI & Data Science (AI-DS) | `hod.aids@college.edu` | `Hod@1234` |
 | **Teacher (Faculty)** | Computer Engg (CSE) | `priya.sharma@college.edu` | `Faculty@123` |
 | **Teacher (Faculty)** | Computer Engg (CSE) | `amit.deshmukh@college.edu` | `Faculty@123` |
-| **Teacher (Faculty)** | Information Tech (IT) | `sneha.joshi@college.edu` | `Faculty@123` |
-| **Teacher (Faculty)** | Information Tech (IT) | `vikram.patel@college.edu` | `Faculty@123` |
+| **Teacher (Faculty)** | Information Tech (IT) | `simran.patil@college.edu` | `Faculty@123` |
+| **Teacher (Faculty)** | Information Tech (IT) | `sonali.karthik@college.edu` | `Faculty@123` |
 | **Teacher (Faculty)** | AI & Data Science (AI-DS) | `neha.gupta@college.edu` | `Faculty@123` |
 | **Student 1 (On-Duty / Visit)** | TE-CSE | `student1@college.edu` | `Student@123` |
 | **Student 2 (On-Duty / Visit)** | TE-CSE | `student2@college.edu` | `Student@123` |
@@ -194,3 +194,18 @@ A Docker Compose file for local orchestration is included at the repo root (`doc
 | Scheduling | node-cron | MIT |
 | Email | Resend | MIT |
 | Export | ExcelJS, PDFKit | MIT |
+
+## Deploying frontend and backend together on Vercel
+
+Use **one Vercel project**, importing the repository root with the **Services** framework. The root `vercel.json` builds the Express backend and Vite frontend together. Requests to `/api/*` reach Express; other URLs reach React, including direct links and refreshes.
+
+- Set the Production branch to `develop`. Automatic deployment is enabled only for `develop`; other branches do not generate Preview deployments.
+- Add environment variables to **Production**: `NODE_ENV=production`, `MONGO_URI` (include the database name), `JWT_SECRET`, `CLIENT_URL` (the stable production domain), and `CRON_SECRET` (a long random secret). Keep existing attendance and mail configuration in Production too.
+- Production frontend requests always use `/api`, so both services use the same deployment and origin. `VITE_API_URL`, if retained, should be a Config value of `/api`.
+- Seed explicitly once against the same MongoDB database using `npm run seed` from `backend`. Seeding preserves existing data and changed passwords; read its output rather than assuming demo accounts were created.
+- Use the stable production domain for bookmarks. Old deployment URLs keep their original code and are not updated by later deployments.
+- Check `/api/health`: it must return `status: ok` and `database: connected`.
+
+The protected Vercel cron at `/api/cron/daily` runs daily at 12:30 UTC (18:00 India time). Vercel supplies the `CRON_SECRET` bearer token. On Hobby, execution can occur within that hour. In-process timers are used only by persistent local servers; deployed attendance calculations reconcile expired QR windows from saved database deadlines. Email delivery still requires working Google Apps Script or Resend credentials.
+
+Validation: `cd backend && npm ci && npm test` runs an isolated MongoDB seed/login/report/export/QR/permissions/cron suite without contacting the production database or sending emails. `cd frontend && npm ci && npm run build` builds the production frontend; `node --test src/api/apiUrl.test.js` checks API URL handling.

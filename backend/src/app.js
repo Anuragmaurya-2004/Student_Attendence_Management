@@ -1,3 +1,6 @@
+require('dotenv').config({ path: require('path').resolve(__dirname, '../.env') });
+require('express-async-errors');
+const connectDB = require('./config/db');
 const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
@@ -45,8 +48,23 @@ app.use(express.json());
 app.use(mongoSanitize());
 app.use(morgan('dev'));
 
-app.get('/api/health', (req, res) => res.json({ status: 'ok', time: new Date().toISOString() }));
+// Every entry point (including Vercel's direct app export) waits for MongoDB.
+app.use('/api', async (req, res, next) => {
+  try {
+    if (!process.env.JWT_SECRET) {
+      return res.status(503).json({ message: 'Backend configuration incomplete: JWT_SECRET is missing.' });
+    }
+    await connectDB();
+    next();
+  } catch (error) {
+    console.error('[DB] Connection failed:', error.name);
+    res.status(503).json({ message: 'Database unavailable. Check the backend MongoDB configuration and network access.' });
+  }
+});
 
+app.get('/api/health', (req, res) => res.json({ status: 'ok', database: 'connected', time: new Date().toISOString() }));
+
+app.use('/api/cron', require('./routes/cronRoutes'));
 app.use('/api/auth', authRoutes);
 app.use('/api/academic', academicRoutes); // departments, academic years, courses, class batches
 app.use('/api/students', studentRoutes);

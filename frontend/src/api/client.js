@@ -1,34 +1,16 @@
 import axios from 'axios';
-
-const getDefaultApiUrl = () => {
-  const configured = import.meta.env.VITE_API_URL;
-  if (configured) return configured;
-
-  const hostname = window.location.hostname;
-  const protocol = window.location.protocol;
-
-  // Fallback to deployed Railway API if VITE_API_URL was not set during build
-  if (hostname.endsWith('.vercel.app')) {
-    return 'https://studentattendencemanagement-production.up.railway.app/api';
-  }
-
-  // Prevent browser Mixed Content blocking when frontend runs on HTTPS
-  if (protocol === 'https:') {
-    return '/api';
-  }
-
-  if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') {
-    return 'http://localhost:5000/api';
-  }
-
-  return `http://${hostname}:5000/api`;
-};
+import { getApiUrl } from './apiUrl';
 
 const api = axios.create({
-  baseURL: getDefaultApiUrl(),
+  // Frontend and API ship together in the same Vercel project.
+  baseURL: import.meta.env.PROD ? '/api' : getApiUrl(import.meta.env.VITE_API_URL),
+  timeout: 30000,
 });
 
 api.interceptors.request.use((config) => {
+  if (config.url?.includes('/import') || config.url?.includes('/run-notifications')) {
+    config.timeout = 300000;
+  }
   const token = localStorage.getItem('token');
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
@@ -40,9 +22,7 @@ api.interceptors.response.use(
     if (err.response?.status === 401) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
-      if (!window.location.pathname.includes('/login')) {
-        window.location.href = '/login';
-      }
+      if (!window.location.pathname.includes('/login')) window.location.href = '/login';
     }
     return Promise.reject(err);
   }

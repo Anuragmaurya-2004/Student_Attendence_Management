@@ -27,9 +27,11 @@ async function sendMail({ to, subject, html }) {
           secret: process.env.GOOGLE_APPS_SCRIPT_SECRET || 'MY_CUSTOM_SECRET_KEY',
         }),
         redirect: 'follow',
+        signal: AbortSignal.timeout(15000),
       });
 
-      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error('Email webhook returned HTTP ' + response.status);
+      const result = await response.json();
       if (result.error) {
         console.error('[Mail] Google Apps Script webhook returned error:', result.error);
         throw new Error(result.error);

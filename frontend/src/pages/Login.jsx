@@ -66,7 +66,10 @@ export default function Login() {
 
       navigate(`/${user.role}`);
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Invalid credentials or login failed');
+      const message = err.response?.data?.message;
+      toast.error(message || (!err.response
+        ? 'Cannot reach the login server. Please try again or contact your administrator.'
+        : 'The login server returned an unexpected response. Please contact your administrator.'));
     } finally {
       setBusy(false);
     }

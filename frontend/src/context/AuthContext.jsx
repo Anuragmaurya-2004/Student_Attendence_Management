@@ -11,9 +11,7 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(false);
 
   const loginFaculty = async (email, password) => {
-    console.log('[AuthContext] POST /auth/faculty/login', { email });
     const { data } = await api.post('/auth/faculty/login', { email, password });
-    console.log('[AuthContext] Faculty login response', data);
     const userData = {
       ...data.user,
       mustChangePassword: Boolean(data.mustChangePassword),
@@ -25,9 +23,7 @@ export function AuthProvider({ children }) {
   };
 
   const loginStudent = async (email, password) => {
-    console.log('[AuthContext] POST /auth/student/login', { email });
     const { data } = await api.post('/auth/student/login', { email, password });
-    console.log('[AuthContext] Student login response', data);
     const userData = {
       ...data.user,
       mustChangePassword: Boolean(data.mustChangePassword),

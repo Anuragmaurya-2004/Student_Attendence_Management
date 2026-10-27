@@ -96,6 +96,58 @@ async function computeStudentCourseAttendance(studentId, courseId, classBatchId 
  *     - If teacher is Class Teacher, can also view overall defaulters for their class.
  *     - HOD and Admin can view overall defaulters across all batches.
  */
+async function createAttendanceLookup(batchIds, courses) {
+  await require('../controllers/sessionController').finalizeExpiredSessions(batchIds);
+  // Read sessions and attendance once for the report, rather than once per
+  // student/course. Atlas round trips otherwise exceed serverless/UI timeouts.
+  const reportSessions = await Session.find({
+    classBatch: { $in: batchIds },
+    course: { $in: courses.map(c => c._id) },
+    status: { $ne: 'cancelled' },
+  }).select('_id classBatch course status durationHours').lean();
+  const reportAttendance = await Attendance.find({
+    session: { $in: reportSessions.map(s => s._id) },
+  }).select('session student status').lean();
+  const recordedSessions = new Set(reportAttendance.map(a => a.session.toString()));
+  const heldHours = new Map();
+  const sessionMap = new Map();
+  for (const session of reportSessions) {
+    if (session.status !== 'held' && !recordedSessions.has(session._id.toString())) continue;
+    const key = session.classBatch.toString() + ':' + session.course.toString();
+    const duration = session.durationHours > 0 ? session.durationHours : 1;
+    heldHours.set(key, (heldHours.get(key) || 0) + duration);
+    sessionMap.set(session._id.toString(), { key, duration });
+  }
+  const studentHours = new Map();
+  for (const record of reportAttendance) {
+    if (!['present', 'late', 'on_duty'].includes(record.status)) continue;
+    const session = sessionMap.get(record.session.toString());
+    if (!session) continue;
+    const key = record.student.toString() + ':' + session.key;
+    const hours = studentHours.get(key) || { attended: 0, onDuty: 0 };
+    hours.attended += session.duration;
+    if (record.status === 'on_duty') hours.onDuty += session.duration;
+    studentHours.set(key, hours);
+  }
+  const getStat = (studentId, courseDoc, batchId) => {
+    const key = batchId + ':' + courseDoc._id.toString();
+    const totalHeldHours = heldHours.get(key) || 0;
+    const hours = studentHours.get(studentId.toString() + ':' + key) || { attended: 0, onDuty: 0 };
+    const percent = totalHeldHours > 0 ? hours.attended / totalHeldHours * 100 : 0;
+    const threshold = courseDoc.defaulterThresholdPercent || DEFAULT_THRESHOLD;
+    return {
+      student: studentId, course: courseDoc._id, type: courseDoc.type,
+      academicYear: courseDoc.academicYear, attendedHours: hours.attended,
+      onDutyHours: hours.onDuty, totalHeldHours,
+      attendancePercent: Math.round(percent * 100) / 100, threshold,
+      hasSessions: totalHeldHours > 0,
+      isDefaulter: totalHeldHours > 0 && percent < threshold,
+    };
+  };
+
+  return getStat;
+}
+
 async function computeAllDefaulters({
   academicYear,
   department,
@@ -179,6 +231,8 @@ async function computeAllDefaulters({
     if (sp.course) batchCourseMap.get(bId).add(sp.course.toString());
   });
 
+  const getStat = await createAttendanceLookup(studentBatchIds, courses);
+
   const results = [];
 
   if (viewType === 'overall') {
@@ -210,7 +264,7 @@ async function computeAllDefaulters({
       const failingCourses = [];
 
       for (const courseDoc of relevantCourses) {
-        const stat = await computeStudentCourseAttendance(student._id, courseDoc._id, studentBatchId);
+        const stat = getStat(student._id, courseDoc, studentBatchId);
         totalAttended += stat.attendedHours;
         totalHeld += stat.totalHeldHours;
         totalOnDuty += stat.onDutyHours;
@@ -275,7 +329,7 @@ async function computeAllDefaulters({
     }
 
     for (const courseDoc of relevantCourses) {
-      const result = await computeStudentCourseAttendance(student._id, courseDoc._id, studentBatchId);
+      const result = getStat(student._id, courseDoc, studentBatchId);
       results.push({
         ...result,
         studentName: student.name,
@@ -305,4 +359,4 @@ async function computeAllDefaulters({
   return results;
 }
 
-module.exports = { computeStudentCourseAttendance, computeAllDefaulters, DEFAULT_THRESHOLD };
+module.exports = { computeStudentCourseAttendance, computeAllDefaulters, createAttendanceLookup, DEFAULT_THRESHOLD };
